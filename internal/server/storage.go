@@ -1,26 +1,36 @@
 package server
 
-type Storage interface {
-	SaveMetric(metric Metric)
+import (
+	"github.com/desepticon55/metrics-collector/internal/common"
+	"sync"
+)
 
-	GetMetric(name string) (Metric, bool)
+type Storage interface {
+	SaveMetric(metric common.Metric)
+
+	GetMetric(name string) (common.Metric, bool)
 }
 
 type MemStorage struct {
-	metrics map[string]Metric
+	mu      sync.Mutex
+	metrics map[string]common.Metric
 }
 
 func NewMemStorage() *MemStorage {
 	return &MemStorage{
-		metrics: make(map[string]Metric),
+		metrics: make(map[string]common.Metric),
 	}
 }
 
-func (s *MemStorage) SaveMetric(metric Metric) {
+func (s *MemStorage) SaveMetric(metric common.Metric) {
+	s.mu.Lock()
 	s.metrics[metric.Name] = metric
+	s.mu.Unlock()
 }
 
-func (s *MemStorage) GetMetric(name string) (Metric, bool) {
+func (s *MemStorage) GetMetric(name string) (common.Metric, bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	metric, exists := s.metrics[name]
 	return metric, exists
 }

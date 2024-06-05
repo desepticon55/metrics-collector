@@ -3,6 +3,7 @@ package server
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/desepticon55/metrics-collector/internal/common"
 	"github.com/go-playground/validator/v10"
 	"log"
 	"net/http"
@@ -30,8 +31,8 @@ func (handler *WriteMetricHandler) ServeHTTP(w http.ResponseWriter, r *http.Requ
 
 	copy(parts, strings.Split(strings.TrimPrefix(r.URL.Path, "/update/"), "/"))
 
-	var requestDto = MetricRequestDto{
-		Type:  MetricType(parts[0]),
+	var requestDto = common.MetricRequestDto{
+		Type:  common.MetricType(parts[0]),
 		Name:  parts[1],
 		Value: parts[2],
 	}
@@ -50,22 +51,22 @@ func (handler *WriteMetricHandler) ServeHTTP(w http.ResponseWriter, r *http.Requ
 	}
 
 	switch requestDto.Type {
-	case Gauge:
+	case common.Gauge:
 		value, err := strconv.ParseFloat(strings.TrimSpace(requestDto.Value), 64)
 		if err != nil {
 			http.Error(w, fmt.Sprintf("Bad request. Gauge type has incorrect value = %s. Expected float64", requestDto.Value), http.StatusBadRequest)
 		}
-		handler.storage.SaveMetric(Metric{Name: requestDto.Name, Type: Gauge, Value: value})
-	case Counter:
+		handler.storage.SaveMetric(common.Metric{Name: requestDto.Name, Type: common.Gauge, Value: value})
+	case common.Counter:
 		value, err := strconv.ParseInt(strings.TrimSpace(requestDto.Value), 10, 64)
 		if err != nil {
 			http.Error(w, fmt.Sprintf("Bad request. Counter type has incorrect value = %s. Expected int64", requestDto.Value), http.StatusBadRequest)
 		}
 		metric, exists := handler.storage.GetMetric(requestDto.Name)
 		if exists {
-			handler.storage.SaveMetric(Metric{Name: requestDto.Name, Type: Counter, Value: metric.Value.(int64) + value})
+			handler.storage.SaveMetric(common.Metric{Name: requestDto.Name, Type: common.Counter, Value: metric.Value.(int64) + value})
 		} else {
-			handler.storage.SaveMetric(Metric{Name: requestDto.Name, Type: Counter, Value: value})
+			handler.storage.SaveMetric(common.Metric{Name: requestDto.Name, Type: common.Counter, Value: value})
 		}
 	}
 

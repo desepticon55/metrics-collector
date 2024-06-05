@@ -2,6 +2,7 @@ package server
 
 import (
 	"fmt"
+	"github.com/desepticon55/metrics-collector/internal/common"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"io"
@@ -114,7 +115,7 @@ func TestNewReadMetricHandler(t *testing.T) {
 	}
 	for _, test := range tests {
 		storage := NewMemStorage()
-		storage.SaveMetric(Metric{Name: "some_metric", Type: Counter, Value: "9"})
+		storage.SaveMetric(common.Metric{Name: "some_metric", Type: common.Counter, Value: "9"})
 		t.Run(test.name, func(t *testing.T) {
 			request := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/find/%s", test.metricName), nil)
 			w := httptest.NewRecorder()
