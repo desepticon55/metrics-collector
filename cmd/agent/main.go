@@ -27,7 +27,7 @@ func main() {
 		mu.Lock()
 		err := sender.SendMetrics(metrics)
 		if err != nil {
-			log.Printf("Error during  metrics: %s", err)
+			log.Printf("Error during send metrics: %s", err)
 		} else {
 			log.Println("Metrics sent successfully")
 		}

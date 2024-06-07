@@ -4,11 +4,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/desepticon55/metrics-collector/internal/common"
-	"github.com/go-playground/validator/v10"
+	"github.com/go-chi/chi/v5"
 	"log"
 	"net/http"
-	"strconv"
-	"strings"
 )
 
 type WriteMetricHandler struct {
@@ -22,19 +20,10 @@ func NewWriteMetricHandler(s Storage) *WriteMetricHandler {
 }
 
 func (handler *WriteMetricHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		http.Error(w, fmt.Sprintf("Method '%s' is not allowed", r.Method), http.StatusBadRequest)
-		return
-	}
-	log.Printf("URL: %s", r.URL.String())
-	parts := make([]string, 3)
-
-	copy(parts, strings.Split(strings.TrimPrefix(r.URL.Path, "/update/"), "/"))
-
 	var requestDto = common.MetricRequestDto{
-		Type:  common.MetricType(parts[0]),
-		Name:  parts[1],
-		Value: parts[2],
+		Type:  common.MetricType(chi.URLParam(r, "type")),
+		Name:  chi.URLParam(r, "name"),
+		Value: chi.URLParam(r, "value"),
 	}
 
 	if requestDto.Name == "" {
@@ -42,32 +31,14 @@ func (handler *WriteMetricHandler) ServeHTTP(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	validate := validator.New()
-	validate.RegisterValidation("metricTypeCheck", metricTypeValidator)
-	err := validate.Struct(requestDto)
+	metric, err := MapMetricRequestDtoToMetricDomainModel(requestDto)
 	if err != nil {
-		log.Printf("Request validation failed: %s", err)
-		http.Error(w, fmt.Sprintf("Bad request: %s", err), http.StatusBadRequest)
+		http.Error(w, err.Error(), http.StatusBadRequest)
 	}
 
-	switch requestDto.Type {
-	case common.Gauge:
-		value, err := strconv.ParseFloat(strings.TrimSpace(requestDto.Value), 64)
-		if err != nil {
-			http.Error(w, fmt.Sprintf("Bad request. Gauge type has incorrect value = %s. Expected float64", requestDto.Value), http.StatusBadRequest)
-		}
-		handler.storage.SaveMetric(common.Metric{Name: requestDto.Name, Type: common.Gauge, Value: value})
-	case common.Counter:
-		value, err := strconv.ParseInt(strings.TrimSpace(requestDto.Value), 10, 64)
-		if err != nil {
-			http.Error(w, fmt.Sprintf("Bad request. Counter type has incorrect value = %s. Expected int64", requestDto.Value), http.StatusBadRequest)
-		}
-		metric, exists := handler.storage.GetMetric(requestDto.Name)
-		if exists {
-			handler.storage.SaveMetric(common.Metric{Name: requestDto.Name, Type: common.Counter, Value: metric.Value.(int64) + value})
-		} else {
-			handler.storage.SaveMetric(common.Metric{Name: requestDto.Name, Type: common.Counter, Value: value})
-		}
+	if err := handler.storage.SaveMetric(metric); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
 	}
 
 	w.WriteHeader(http.StatusOK)
@@ -89,25 +60,58 @@ func (handler *ReadMetricHandler) ServeHTTP(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	parts := strings.Split(strings.TrimPrefix(r.URL.Path, "/find/"), "/")
-	if len(parts) != 1 {
-		log.Printf("Invalid URL format. URL: %s", r.URL.String())
-		http.Error(w, "Invalid URL format", http.StatusBadRequest)
+	metricName := chi.URLParam(r, "name")
+	metricType := common.MetricType(chi.URLParam(r, "type"))
+
+	if metricType != common.Gauge && metricType != common.Counter {
+		http.Error(w, fmt.Sprintf("Unsupported metric type = '%s'", metricType), http.StatusBadRequest)
 		return
 	}
 
-	metricName := parts[0]
-	metric, exists := handler.storage.GetMetric(metricName)
+	metric, exists := handler.storage.GetMetric(metricName, metricType)
 	if !exists {
-		http.Error(w, fmt.Sprintf("Metric with name '%s' was not found", metricName), http.StatusNotFound)
+		http.Error(w, fmt.Sprintf("Metric with name '%s' and type '%s' was not found", metricName, metricType), http.StatusNotFound)
 		return
 	}
 
-	bytes, err := json.Marshal(metric)
+	bytes, err := json.Marshal(metric.Value)
+	if err != nil {
+		log.Printf("Error during marshal mertic value. %s", err)
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		return
+	}
+
+	if _, err = w.Write(bytes); err != nil {
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		return
+	}
+}
+
+type ReadAllMetricsHandler struct {
+	storage Storage
+}
+
+func NewReadAllMetricsHandler(s Storage) *ReadAllMetricsHandler {
+	return &ReadAllMetricsHandler{
+		storage: s,
+	}
+}
+
+func (handler *ReadAllMetricsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, fmt.Sprintf("Method '%s' is not allowed", r.Method), http.StatusBadRequest)
+		return
+	}
+
+	bytes, err := json.Marshal(handler.storage.GetAllMetrics())
 	if err != nil {
 		log.Printf("Error during marshal mertic. %s", err)
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
 	}
-	w.Write(bytes)
+
+	if _, err = w.Write(bytes); err != nil {
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		return
+	}
 }

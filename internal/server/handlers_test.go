@@ -3,6 +3,7 @@ package server
 import (
 	"fmt"
 	"github.com/desepticon55/metrics-collector/internal/common"
+	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"io"
@@ -12,79 +13,85 @@ import (
 )
 
 func TestNewWriteMetricHandler(t *testing.T) {
-	type want struct {
-		code int
+	type expected struct {
+		status int
+		body   string
 	}
 	tests := []struct {
-		name        string
-		metricName  string
-		metricType  string
-		metricValue string
-		want        want
+		name     string
+		path     string
+		expected expected
 	}{
 		{
-			name:        "positive test correct counter metric",
-			metricName:  "some_counter_metric",
-			metricType:  "counter",
-			metricValue: "1",
-			want: want{
-				code: 200,
+			name: "Valid counter metric",
+			path: "/update/counter/some_counter_metric/1",
+			expected: expected{
+				status: http.StatusOK,
+				body:   "",
 			},
 		},
 		{
-			name:        "positive test with correct gauge metric",
-			metricName:  "some_gauge_metric",
-			metricType:  "gauge",
-			metricValue: "1.83",
-			want: want{
-				code: 200,
+			name: "Valid gauge metric",
+			path: "/update/gauge/some_gauge_metric/1.33",
+			expected: expected{
+				status: http.StatusOK,
+				body:   "",
 			},
 		},
 		{
-			name:        "negative test metric without metricName",
-			metricType:  "counter",
-			metricValue: "1",
-			want: want{
-				code: 404,
+			name: "Invalid counter metric",
+			path: "/update/counter/some_counter_metric/invalid",
+			expected: expected{
+				status: http.StatusBadRequest,
+				body:   "bad request. Counter type has incorrect value = invalid. Expected int64\n",
 			},
 		},
 		{
-			name:        "negative test metric without metricType",
-			metricName:  "some_counter_metric",
-			metricValue: "1",
-			want: want{
-				code: 400,
+			name: "Invalid gauge metric",
+			path: "/update/gauge/some_gauge_metric/invalid",
+			expected: expected{
+				status: http.StatusBadRequest,
+				body:   "bad request. Gauge type has incorrect value = invalid. Expected float64\n",
 			},
 		},
 		{
-			name:        "negative test metric with incorrect counter value",
-			metricType:  "counter",
-			metricName:  "some_counter_metric",
-			metricValue: "1.34",
-			want: want{
-				code: 400,
+			name: "Unsupported metric type",
+			path: "/update/unknown/some_metric/1",
+			expected: expected{
+				status: http.StatusBadRequest,
+				body:   "request validation failed: Key: 'MetricRequestDto.Type' Error:Field validation for 'Type' failed on the 'metricTypeCheck' tag\n",
+			},
+		},
+		{
+			name: "Missing value",
+			path: "/update/gauge/some_metric/",
+			expected: expected{
+				status: http.StatusNotFound,
+				body:   "404 page not found\n",
 			},
 		},
 	}
+
+	storage := NewMemStorage()
+	router := chi.NewRouter()
+	router.Method(http.MethodPost, "/update/{type}/{name}/{value}", NewWriteMetricHandler(storage))
+
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			request := httptest.NewRequest(http.MethodPost, fmt.Sprintf("/update/%s/%s/%s", test.metricType, test.metricName, test.metricValue), nil)
-			w := httptest.NewRecorder()
-			handler := WriteMetricHandler{
-				storage: NewMemStorage(),
-			}
-			handler.ServeHTTP(w, request)
+			req, err := http.NewRequest("POST", test.path, nil)
+			assert.NoError(t, err)
 
-			res := w.Result()
-			defer res.Body.Close()
-			assert.Equal(t, test.want.code, res.StatusCode)
+			recorder := httptest.NewRecorder()
+			router.ServeHTTP(recorder, req)
+
+			assert.Equal(t, test.expected.status, recorder.Code)
+			assert.Equal(t, test.expected.body, recorder.Body.String())
 		})
 	}
-
 }
 
 func TestNewReadMetricHandler(t *testing.T) {
-	type want struct {
+	type expected struct {
 		code        int
 		response    string
 		contentType string
@@ -92,49 +99,105 @@ func TestNewReadMetricHandler(t *testing.T) {
 	tests := []struct {
 		name       string
 		metricName string
-		want       want
+		metricType string
+		expected   expected
 	}{
 		{
-			name:       "test exist metric",
+			name:       "Known metric",
 			metricName: "some_metric",
-			want: want{
+			metricType: "counter",
+			expected: expected{
 				code:        200,
-				response:    `{"Name":"some_metric","Type":"counter","Value":"9"}`,
+				response:    `9`,
 				contentType: "text/plain; charset=utf-8",
 			},
 		},
 		{
-			name:       "test unknown metric",
+			name:       "Unknown metric",
 			metricName: "unknown_metric",
-			want: want{
+			metricType: "counter",
+			expected: expected{
 				code:        404,
-				response:    `Metric with name 'unknown_metric' was not found`,
+				response:    `Metric with name 'unknown_metric' and type 'counter' was not found`,
 				contentType: "text/plain; charset=utf-8",
 			},
 		},
 	}
-	for _, test := range tests {
-		storage := NewMemStorage()
-		storage.SaveMetric(common.Metric{Name: "some_metric", Type: common.Counter, Value: "9"})
-		t.Run(test.name, func(t *testing.T) {
-			request := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/find/%s", test.metricName), nil)
-			w := httptest.NewRecorder()
-			handler := ReadMetricHandler{
-				storage: storage,
-			}
-			handler.ServeHTTP(w, request)
+	storage := NewMemStorage()
+	require.NoError(t, storage.SaveMetric(common.Metric{Name: "some_metric", Type: common.Counter, Value: 9}))
 
-			res := w.Result()
-			assert.Equal(t, test.want.code, res.StatusCode)
+	router := chi.NewRouter()
+	router.Method(http.MethodGet, "/value/{type}/{name}", NewReadMetricHandler(storage))
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			req, err := http.NewRequest("GET", fmt.Sprintf("/value/%s/%s", test.metricType, test.metricName), nil)
+			assert.NoError(t, err)
+
+			recorder := httptest.NewRecorder()
+			router.ServeHTTP(recorder, req)
+
+			res := recorder.Result()
+			assert.Equal(t, test.expected.code, recorder.Code)
 
 			defer res.Body.Close()
 			resBody, err := io.ReadAll(res.Body)
 
 			require.NoError(t, err)
 			if res.StatusCode == 200 {
-				assert.JSONEq(t, test.want.response, string(resBody))
+				assert.JSONEq(t, test.expected.response, string(resBody))
 			}
-			assert.Equal(t, test.want.contentType, res.Header.Get("Content-Type"))
+			assert.Equal(t, test.expected.contentType, res.Header.Get("Content-Type"))
+		})
+	}
+
+}
+
+func TestNewReadAllMetricsHandler(t *testing.T) {
+	type expected struct {
+		code        int
+		response    string
+		contentType string
+	}
+	tests := []struct {
+		name     string
+		expected expected
+	}{
+		{
+			name: "Fetch all metrics",
+			expected: expected{
+				code:        200,
+				response:    `[{"Name":"some_counter_metric","Type":"counter","Value":9}, {"Name":"some_gauge_metric","Type":"gauge","Value":1.32}]`,
+				contentType: "text/plain; charset=utf-8",
+			},
+		},
+	}
+	storage := NewMemStorage()
+	require.NoError(t, storage.SaveMetric(common.Metric{Name: "some_counter_metric", Type: common.Counter, Value: 9}))
+	require.NoError(t, storage.SaveMetric(common.Metric{Name: "some_gauge_metric", Type: common.Gauge, Value: 1.32}))
+
+	router := chi.NewRouter()
+	router.Method(http.MethodGet, "/", NewReadAllMetricsHandler(storage))
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			req, err := http.NewRequest("GET", "/", nil)
+			assert.NoError(t, err)
+
+			recorder := httptest.NewRecorder()
+			router.ServeHTTP(recorder, req)
+
+			res := recorder.Result()
+			assert.Equal(t, test.expected.code, recorder.Code)
+
+			defer res.Body.Close()
+			resBody, err := io.ReadAll(res.Body)
+
+			require.NoError(t, err)
+			if res.StatusCode == 200 {
+				assert.JSONEq(t, test.expected.response, string(resBody))
+			}
+			assert.Equal(t, test.expected.contentType, res.Header.Get("Content-Type"))
 		})
 	}
 

@@ -2,6 +2,11 @@ package common
 
 type MetricType string
 
+const (
+	Gauge   MetricType = "gauge"
+	Counter MetricType = "counter"
+)
+
 type Metric struct {
 	Name  string
 	Type  MetricType
@@ -14,7 +19,8 @@ type MetricRequestDto struct {
 	Value string     `json:"value" validate:"required"`
 }
 
-const (
-	Gauge   MetricType = "gauge"
-	Counter MetricType = "counter"
-)
+type MetricResponseDto struct {
+	Name  string
+	Type  MetricType
+	Value string
+}
