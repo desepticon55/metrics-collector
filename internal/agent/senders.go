@@ -17,7 +17,7 @@ type MetricsSender interface {
 type HTTPMetricsSender struct {
 }
 
-func (s *HTTPMetricsSender) SendMetrics(metrics []common.Metric) error {
+func (s *HTTPMetricsSender) SendMetrics(address string, metrics []common.Metric) error {
 	client := httpclient.NewClient(
 		httpclient.WithHTTPTimeout(1*time.Second),
 		httpclient.WithRetrier(heimdall.NewRetrier(heimdall.NewConstantBackoff(2*time.Second, 5*time.Second))),
@@ -25,19 +25,25 @@ func (s *HTTPMetricsSender) SendMetrics(metrics []common.Metric) error {
 	)
 
 	for _, metric := range metrics {
-		url := fmt.Sprintf("%s/update/%s/%s/%s", "http://localhost:8080", metric.Type, metric.Name, metric.Value)
+		url := fmt.Sprintf("http://%s/update/%s/%s/%s", address, metric.Type, metric.Name, metric.Value)
 		headers := make(http.Header)
 		headers.Add("Content-Type", "text/plain")
+
 		resp, err := client.Post(url, nil, headers)
-		defer func() {
-			err := resp.Body.Close()
-			if err != nil {
-				log.Fatal(err)
-			}
-		}()
 		if err != nil {
 			return err
 		}
+
+		if resp != nil {
+			func() {
+				defer func() {
+					if err := resp.Body.Close(); err != nil {
+						log.Printf("Error closing response body: %v", err)
+					}
+				}()
+			}()
+		}
 	}
+
 	return nil
 }

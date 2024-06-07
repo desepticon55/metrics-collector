@@ -1,6 +1,8 @@
 package main
 
 import (
+	"flag"
+	"fmt"
 	"github.com/desepticon55/metrics-collector/internal/server"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
@@ -22,5 +24,10 @@ func main() {
 	router.Method(http.MethodGet, "/value/{type}/{name}", server.NewReadMetricHandler(storage))
 	router.Method(http.MethodPost, "/update/{type}/{name}/{value}", server.NewWriteMetricHandler(storage))
 
-	http.ListenAndServe(":8080", router)
+	address := flag.String("a", "localhost:8080", "Server address")
+	flag.Parse()
+
+	fmt.Println("Address:", *address)
+
+	http.ListenAndServe(*address, router)
 }
