@@ -1,7 +1,6 @@
 package main
 
 import (
-	"flag"
 	"fmt"
 	"github.com/desepticon55/metrics-collector/internal/agent"
 	"github.com/desepticon55/metrics-collector/internal/common"
@@ -13,18 +12,15 @@ import (
 func main() {
 	var mu sync.Mutex
 	var metrics []common.Metric
-	pollInterval := flag.Int("p", 2, "Server address")
-	reportInterval := flag.Int("r", 10, "Server address")
-	address := flag.String("a", "localhost:8080", "Server address")
-	flag.Parse()
+	config := agent.GetConfig()
 
-	fmt.Println("Address:", *address)
-	fmt.Println("Report interval:", *reportInterval)
-	fmt.Println("Poll interval:", *pollInterval)
+	fmt.Println("Address:", config.ServerAddress)
+	fmt.Println("Report interval:", config.ReportInterval)
+	fmt.Println("Poll interval:", config.PollInterval)
 
 	provider := &agent.RuntimeMetricProvider{}
 	go func() {
-		for range time.Tick(time.Duration(*pollInterval) * time.Second) {
+		for range time.Tick(time.Duration(config.PollInterval) * time.Second) {
 			m := provider.GetMetrics()
 			mu.Lock()
 			metrics = append(metrics, m...)
@@ -33,9 +29,9 @@ func main() {
 	}()
 
 	sender := &agent.HTTPMetricsSender{}
-	for range time.Tick(time.Duration(*reportInterval) * time.Second) {
+	for range time.Tick(time.Duration(config.ReportInterval) * time.Second) {
 		mu.Lock()
-		err := sender.SendMetrics(*address, metrics)
+		err := sender.SendMetrics(config.ServerAddress, metrics)
 		if err != nil {
 			log.Printf("Error during send metrics: %s", err)
 		} else {

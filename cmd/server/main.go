@@ -12,6 +12,10 @@ import (
 
 func main() {
 	storage := server.NewMemStorage()
+	config := server.GetConfig()
+	flag.Parse()
+
+	fmt.Println("Address:", config.ServerAddress)
 
 	router := chi.NewRouter()
 	router.Use(middleware.Logger)
@@ -24,10 +28,5 @@ func main() {
 	router.Method(http.MethodGet, "/value/{type}/{name}", server.NewReadMetricHandler(storage))
 	router.Method(http.MethodPost, "/update/{type}/{name}/{value}", server.NewWriteMetricHandler(storage))
 
-	address := flag.String("a", "localhost:8080", "Server address")
-	flag.Parse()
-
-	fmt.Println("Address:", *address)
-
-	http.ListenAndServe(*address, router)
+	http.ListenAndServe(config.ServerAddress, router)
 }
