@@ -5,7 +5,7 @@ import (
 	"math/rand/v2"
 	"runtime"
 	"strconv"
-	"sync"
+	"sync/atomic"
 )
 
 type MetricProvider interface {
@@ -13,7 +13,6 @@ type MetricProvider interface {
 }
 
 type RuntimeMetricProvider struct {
-	mu        sync.Mutex
 	pollCount int64
 }
 
@@ -21,9 +20,7 @@ func (p *RuntimeMetricProvider) GetMetrics() []common.Metric {
 	var memStats runtime.MemStats
 	runtime.ReadMemStats(&memStats)
 
-	p.mu.Lock()
-	p.pollCount++
-	defer p.mu.Unlock()
+	atomic.AddInt64(&p.pollCount, 1)
 
 	metrics := []common.Metric{
 		{Name: "Alloc", Value: strconv.FormatUint(memStats.Alloc, 10), Type: common.Gauge},
