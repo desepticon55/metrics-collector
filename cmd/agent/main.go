@@ -4,12 +4,18 @@ import (
 	"fmt"
 	"github.com/desepticon55/metrics-collector/internal/agent"
 	"github.com/desepticon55/metrics-collector/internal/common"
-	"log"
+	"go.uber.org/zap"
 	"sync"
 	"time"
 )
 
 func main() {
+	logger, err := common.NewLogger()
+	if err != nil {
+		panic(err)
+	}
+	defer logger.Sync()
+
 	var mu sync.Mutex
 	var metrics []common.Metric
 	config := agent.GetConfig()
@@ -33,9 +39,9 @@ func main() {
 		mu.Lock()
 		err := sender.SendMetrics(config.ServerAddress, metrics)
 		if err != nil {
-			log.Printf("Error during send metrics: %s", err)
+			logger.Error("Error during send metrics", zap.Error(err))
 		} else {
-			log.Println("Metrics sent successfully")
+			logger.Info("Metrics sent successfully")
 		}
 		metrics = nil
 		mu.Unlock()

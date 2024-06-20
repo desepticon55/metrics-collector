@@ -7,11 +7,11 @@ import (
 	"github.com/desepticon55/metrics-collector/internal/common"
 	"github.com/desepticon55/metrics-collector/internal/server"
 	"github.com/go-chi/chi/v5"
-	"log"
+	"go.uber.org/zap"
 	"net/http"
 )
 
-func NewCreateMetricHandler(service metricsService) http.HandlerFunc {
+func NewCreateMetricHandler(service metricsService, logger *zap.Logger) http.HandlerFunc {
 	return func(writer http.ResponseWriter, request *http.Request) {
 		var requestDto = common.MetricRequestDto{
 			Type:  common.MetricType(chi.URLParam(request, "type")),
@@ -39,7 +39,7 @@ func NewCreateMetricHandler(service metricsService) http.HandlerFunc {
 	}
 }
 
-func NewFinOneMetricHandler(service metricsService) http.HandlerFunc {
+func NewFinOneMetricHandler(service metricsService, logger *zap.Logger) http.HandlerFunc {
 	return func(writer http.ResponseWriter, request *http.Request) {
 		if request.Method != http.MethodGet {
 			http.Error(writer, fmt.Sprintf("Method '%s' is not allowed", request.Method), http.StatusBadRequest)
@@ -67,7 +67,7 @@ func NewFinOneMetricHandler(service metricsService) http.HandlerFunc {
 
 		bytes, err := json.Marshal(metric.Value)
 		if err != nil {
-			log.Printf("Error during marshal mertic value. %s", err)
+			logger.Error("Error during marshal metric value. {}", zap.Error(err))
 			http.Error(writer, "Internal server error", http.StatusInternalServerError)
 			return
 		}
@@ -79,7 +79,7 @@ func NewFinOneMetricHandler(service metricsService) http.HandlerFunc {
 	}
 }
 
-func NewFinAllMetricsHandler(service metricsService) http.HandlerFunc {
+func NewFinAllMetricsHandler(service metricsService, logger *zap.Logger) http.HandlerFunc {
 	return func(writer http.ResponseWriter, request *http.Request) {
 		if request.Method != http.MethodGet {
 			http.Error(writer, fmt.Sprintf("Method '%s' is not allowed", request.Method), http.StatusBadRequest)
@@ -88,7 +88,7 @@ func NewFinAllMetricsHandler(service metricsService) http.HandlerFunc {
 
 		bytes, err := json.Marshal(service.FindAllMetrics())
 		if err != nil {
-			log.Printf("Error during marshal mertic. %s", err)
+			logger.Error("Error during marshal metric.", zap.Error(err))
 			http.Error(writer, "Internal server error", http.StatusInternalServerError)
 			return
 		}
