@@ -28,7 +28,7 @@ func main() {
 		}
 	}()
 
-	sender := &agent.HTTPMetricsSender{}
+	sender := agent.HTTPMetricsSender{}
 	for range time.Tick(time.Duration(config.ReportInterval) * time.Second) {
 		mu.Lock()
 		err := sender.SendMetrics(config.ServerAddress, metrics)

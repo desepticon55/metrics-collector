@@ -9,7 +9,7 @@ type Config struct {
 	ServerAddress string
 }
 
-func GetConfig() Config {
+func ParseConfig() Config {
 	defaultAddress := "localhost:8080"
 	if envAddr, exists := os.LookupEnv("ADDRESS"); exists {
 		defaultAddress = envAddr

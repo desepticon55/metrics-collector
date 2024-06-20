@@ -1,4 +1,4 @@
-package server
+package memory
 
 import (
 	"fmt"
@@ -6,26 +6,18 @@ import (
 	"sync"
 )
 
-type Storage interface {
-	SaveMetric(metric common.Metric) error
-
-	GetMetric(name string, metricType common.MetricType) (common.Metric, bool)
-
-	GetAllMetrics() []common.Metric
-}
-
-type MemStorage struct {
+type Storage struct {
 	mu      sync.Mutex
 	metrics map[string]common.Metric
 }
 
-func NewMemStorage() *MemStorage {
-	return &MemStorage{
+func New() *Storage {
+	return &Storage{
 		metrics: make(map[string]common.Metric),
 	}
 }
 
-func (s *MemStorage) SaveMetric(metric common.Metric) error {
+func (s *Storage) SaveMetric(metric common.Metric) error {
 	s.mu.Lock()
 	key := fmt.Sprintf("%s_%s", metric.Name, metric.Type)
 	foundMetric, exists := s.metrics[key]
@@ -46,19 +38,22 @@ func (s *MemStorage) SaveMetric(metric common.Metric) error {
 	return nil
 }
 
-func (s *MemStorage) GetMetric(metricName string, metricType common.MetricType) (common.Metric, bool) {
+func (s *Storage) FindOneMetric(metricName string, metricType common.MetricType) (common.Metric, bool) {
 	s.mu.Lock()
-	metric, exists := s.metrics[fmt.Sprintf("%s_%s", metricName, metricType)]
 	defer s.mu.Unlock()
+
+	key := fmt.Sprintf("%s_%s", metricName, metricType)
+	metric, exists := s.metrics[key]
 	return metric, exists
 }
 
-func (s *MemStorage) GetAllMetrics() []common.Metric {
+func (s *Storage) FindAllMetrics() []common.Metric {
 	s.mu.Lock()
+	defer s.mu.Unlock()
+
 	values := make([]common.Metric, 0, len(s.metrics))
 	for _, value := range s.metrics {
 		values = append(values, value)
 	}
-	defer s.mu.Unlock()
 	return values
 }

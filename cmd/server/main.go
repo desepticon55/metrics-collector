@@ -4,6 +4,10 @@ import (
 	"flag"
 	"fmt"
 	"github.com/desepticon55/metrics-collector/internal/server"
+	metricsApi "github.com/desepticon55/metrics-collector/internal/server/api/metrics"
+	metricsMappers "github.com/desepticon55/metrics-collector/internal/server/mapper/metrics"
+	metricsServices "github.com/desepticon55/metrics-collector/internal/server/service/metrics"
+	"github.com/desepticon55/metrics-collector/internal/server/storage/memory"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"net/http"
@@ -11,9 +15,12 @@ import (
 )
 
 func main() {
-	storage := server.NewMemStorage()
-	config := server.GetConfig()
+	config := server.ParseConfig()
 	flag.Parse()
+
+	storage := memory.New()
+	mapper := metricsMappers.NewMapper()
+	metricsService := metricsServices.New(storage, mapper)
 
 	fmt.Println("Address:", config.ServerAddress)
 
@@ -24,9 +31,12 @@ func main() {
 	router.Use(middleware.RealIP)
 	router.Use(middleware.Timeout(60 * time.Second))
 
-	router.Method(http.MethodGet, "/", server.NewReadAllMetricsHandler(storage))
-	router.Method(http.MethodGet, "/value/{type}/{name}", server.NewReadMetricHandler(storage))
-	router.Method(http.MethodPost, "/update/{type}/{name}/{value}", server.NewWriteMetricHandler(storage))
+	router.Method(http.MethodGet, "/", metricsApi.NewFinAllMetricsHandler(metricsService))
+	router.Method(http.MethodGet, "/value/{type}/{name}", metricsApi.NewFinOneMetricHandler(metricsService))
+	router.Method(http.MethodPost, "/update/{type}/{name}/{value}", metricsApi.NewCreateMetricHandler(metricsService))
 
-	http.ListenAndServe(config.ServerAddress, router)
+	err := http.ListenAndServe(config.ServerAddress, router)
+	if err != nil {
+		panic(err)
+	}
 }

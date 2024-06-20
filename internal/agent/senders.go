@@ -17,7 +17,7 @@ type MetricsSender interface {
 type HTTPMetricsSender struct {
 }
 
-func (s *HTTPMetricsSender) SendMetrics(destination string, metrics []common.Metric) error {
+func (HTTPMetricsSender) SendMetrics(destination string, metrics []common.Metric) error {
 	client := httpclient.NewClient(
 		httpclient.WithHTTPTimeout(1*time.Second),
 		httpclient.WithRetrier(heimdall.NewRetrier(heimdall.NewConstantBackoff(2*time.Second, 5*time.Second))),

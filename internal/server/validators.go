@@ -5,7 +5,7 @@ import (
 	"github.com/go-playground/validator/v10"
 )
 
-func metricTypeValidator(fl validator.FieldLevel) bool {
+func MetricTypeValidator(fl validator.FieldLevel) bool {
 	metricType := common.MetricType(fl.Field().String())
 	if metricType == "" {
 		return false
