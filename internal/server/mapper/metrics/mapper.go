@@ -5,8 +5,6 @@ import (
 	"github.com/desepticon55/metrics-collector/internal/common"
 	"github.com/desepticon55/metrics-collector/internal/server"
 	"github.com/go-playground/validator/v10"
-	"strconv"
-	"strings"
 )
 
 type mapper struct {
@@ -16,27 +14,38 @@ func NewMapper() mapper {
 	return mapper{}
 }
 
-func (mapper) MapRequestToDomainModel(dto common.MetricRequestDto) (common.Metric, error) {
+func (mapper) MapRequestToDomainModel(dto common.MetricRequestDto) (server.Metric, error) {
 	validate := validator.New()
-	validate.RegisterValidation("metricTypeCheck", server.MetricTypeValidator)
+	validate.RegisterStructValidation(server.MetricValidator, common.MetricRequestDto{})
 	if err := validate.Struct(dto); err != nil {
-		return common.Metric{}, server.NewValidationError(err)
+		return server.Metric{}, server.NewValidationError(err)
 	}
 
-	switch dto.Type {
+	switch dto.MType {
 	case common.Gauge:
-		value, err := strconv.ParseFloat(strings.TrimSpace(dto.Value), 64)
-		if err != nil {
-			return common.Metric{}, server.NewIncorrectMetricValueError(dto.Name, dto.Type, dto.Value, "float64")
-		}
-		return common.Metric{Name: dto.Name, Type: common.Gauge, Value: value}, nil
+		return server.Metric{Name: dto.ID, Type: common.Gauge, Value: *dto.Value}, nil
 	case common.Counter:
-		value, err := strconv.ParseInt(strings.TrimSpace(dto.Value), 10, 64)
-		if err != nil {
-			return common.Metric{}, server.NewIncorrectMetricValueError(dto.Name, dto.Type, dto.Value, "int64")
-		}
-		return common.Metric{Name: dto.Name, Type: common.Counter, Value: value}, nil
+		return server.Metric{Name: dto.ID, Type: common.Counter, Value: *dto.Delta}, nil
 	default:
-		return common.Metric{}, fmt.Errorf("unsupported metric type: %s", dto.Type)
+		return server.Metric{}, fmt.Errorf("unsupported metric type: %s", dto.MType)
+	}
+}
+
+func (mapper) MapDomainModelToResponse(domainModel server.Metric) common.MetricResponseDto {
+	if domainModel.Type == common.Gauge {
+		value := domainModel.Value.(float64)
+		return common.MetricResponseDto{
+			ID:    domainModel.Name,
+			MType: domainModel.Type,
+			Value: &value,
+			Delta: nil,
+		}
+	}
+	delta := domainModel.Value.(int64)
+	return common.MetricResponseDto{
+		ID:    domainModel.Name,
+		MType: domainModel.Type,
+		Value: nil,
+		Delta: &delta,
 	}
 }

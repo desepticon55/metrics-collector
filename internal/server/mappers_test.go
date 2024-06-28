@@ -8,7 +8,7 @@ package server
 //
 //func TestMapMetricDtoToDomainModel(t *testing.T) {
 //	type expected struct {
-//		result           common.Metric
+//		result           server.Metric
 //		isNeedCheckError bool
 //	}
 //
@@ -20,13 +20,13 @@ package server
 //		{
 //			name: "Valid gauge metric",
 //			dto: common.MetricRequestDto{
-//				Name:  "temperature",
+//				ID:  "temperature",
 //				Type:  common.Gauge,
 //				Value: "23.5",
 //			},
 //			expected: expected{
-//				result: common.Metric{
-//					Name:  "temperature",
+//				result: server.Metric{
+//					ID:  "temperature",
 //					Type:  common.Gauge,
 //					Value: 23.5,
 //				},
@@ -36,13 +36,13 @@ package server
 //		{
 //			name: "Valid counter metric",
 //			dto: common.MetricRequestDto{
-//				Name:  "requests",
+//				ID:  "requests",
 //				Type:  common.Counter,
 //				Value: "100",
 //			},
 //			expected: expected{
-//				result: common.Metric{
-//					Name:  "requests",
+//				result: server.Metric{
+//					ID:  "requests",
 //					Type:  common.Counter,
 //					Value: int64(100),
 //				},
@@ -52,36 +52,36 @@ package server
 //		{
 //			name: "Invalid gauge value",
 //			dto: common.MetricRequestDto{
-//				Name:  "temperature",
+//				ID:  "temperature",
 //				Type:  common.Gauge,
 //				Value: "invalid",
 //			},
 //			expected: expected{
-//				result:           common.Metric{},
+//				result:           server.Metric{},
 //				isNeedCheckError: true,
 //			},
 //		},
 //		{
 //			name: "Invalid counter value",
 //			dto: common.MetricRequestDto{
-//				Name:  "requests",
+//				ID:  "requests",
 //				Type:  common.Counter,
 //				Value: "invalid",
 //			},
 //			expected: expected{
-//				result:           common.Metric{},
+//				result:           server.Metric{},
 //				isNeedCheckError: true,
 //			},
 //		},
 //		{
 //			name: "Unsupported metric type",
 //			dto: common.MetricRequestDto{
-//				Name:  "unknown",
+//				ID:  "unknown",
 //				Type:  "unknown",
 //				Value: "123",
 //			},
 //			expected: expected{
-//				result:           common.Metric{},
+//				result:           server.Metric{},
 //				isNeedCheckError: true,
 //			},
 //		},
@@ -92,7 +92,7 @@ package server
 //				Value: "23.5",
 //			},
 //			expected: expected{
-//				result:           common.Metric{},
+//				result:           server.Metric{},
 //				isNeedCheckError: true,
 //			},
 //		},

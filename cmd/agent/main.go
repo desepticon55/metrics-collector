@@ -17,7 +17,7 @@ func main() {
 	defer logger.Sync()
 
 	var mu sync.Mutex
-	var metrics []common.Metric
+	var metrics []common.MetricRequestDto
 	config := agent.GetConfig()
 
 	fmt.Println("Address:", config.ServerAddress)

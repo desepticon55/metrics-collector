@@ -40,8 +40,10 @@ func main() {
 	router.Use(customMiddleware.LoggingMiddleware(logger))
 
 	router.Method(http.MethodGet, "/", metricsApi.NewFinAllMetricsHandler(metricsService, logger))
-	router.Method(http.MethodGet, "/value/{type}/{name}", metricsApi.NewFinOneMetricHandler(metricsService, logger))
+	router.Method(http.MethodGet, "/value/{type}/{name}", metricsApi.NewFindMetricValueHandler(metricsService, logger))
+	router.Method(http.MethodPost, "/value/", metricsApi.NewFindOneMetricHandler(metricsService, logger))
 	router.Method(http.MethodPost, "/update/{type}/{name}/{value}", metricsApi.NewCreateMetricHandler(metricsService, logger))
+	router.Method(http.MethodPost, "/update/", metricsApi.NewCreateMetricHandlerFromJSON(metricsService, logger))
 
 	http.ListenAndServe(config.ServerAddress, router)
 }

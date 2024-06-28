@@ -14,23 +14,32 @@ func New(s metricStorage, m metricMapper) Service {
 	return Service{storage: s, mapper: m}
 }
 
-func (s Service) SaveMetric(request common.MetricRequestDto) error {
+func (s Service) SaveMetric(request common.MetricRequestDto) (common.MetricResponseDto, error) {
 	metric, err := s.mapper.MapRequestToDomainModel(request)
 	if err != nil {
-		return err
+		return common.MetricResponseDto{}, err
 	}
 
-	return s.storage.SaveMetric(metric)
+	savedMetric, err := s.storage.SaveMetric(metric)
+	if err != nil {
+		return common.MetricResponseDto{}, err
+	}
+	return s.mapper.MapDomainModelToResponse(savedMetric), nil
 }
 
-func (s Service) FindOneMetric(metricName string, metricType common.MetricType) (common.Metric, error) {
+func (s Service) FindOneMetric(metricName string, metricType common.MetricType) (common.MetricResponseDto, error) {
 	metric, exist := s.storage.FindOneMetric(metricName, metricType)
 	if !exist {
-		return common.Metric{}, server.NewMetricNotFoundError(metricName, metricType)
+		return common.MetricResponseDto{}, server.NewMetricNotFoundError(metricName, metricType)
 	}
-	return metric, nil
+	return s.mapper.MapDomainModelToResponse(metric), nil
 }
 
-func (s Service) FindAllMetrics() []common.Metric {
-	return s.storage.FindAllMetrics()
+func (s Service) FindAllMetrics() []common.MetricResponseDto {
+	metrics := s.storage.FindAllMetrics()
+	dtoList := make([]common.MetricResponseDto, 0, len(metrics))
+	for idx, metric := range metrics {
+		dtoList[idx] = s.mapper.MapDomainModelToResponse(metric)
+	}
+	return dtoList
 }

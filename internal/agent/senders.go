@@ -1,6 +1,8 @@
 package agent
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
 	"github.com/desepticon55/metrics-collector/internal/common"
 	"github.com/gojek/heimdall/v7"
@@ -11,13 +13,13 @@ import (
 )
 
 type MetricsSender interface {
-	SendMetrics(destination string, metrics []common.Metric) error
+	SendMetrics(destination string, metrics []common.MetricRequestDto) error
 }
 
 type HTTPMetricsSender struct {
 }
 
-func (HTTPMetricsSender) SendMetrics(destination string, metrics []common.Metric) error {
+func (HTTPMetricsSender) SendMetrics(destination string, metrics []common.MetricRequestDto) error {
 	client := httpclient.NewClient(
 		httpclient.WithHTTPTimeout(1*time.Second),
 		httpclient.WithRetrier(heimdall.NewRetrier(heimdall.NewConstantBackoff(2*time.Second, 5*time.Second))),
@@ -25,11 +27,16 @@ func (HTTPMetricsSender) SendMetrics(destination string, metrics []common.Metric
 	)
 
 	for _, metric := range metrics {
-		url := fmt.Sprintf("http://%s/update/%s/%s/%s", destination, metric.Type, metric.Name, metric.Value)
+		url := fmt.Sprintf("http://%s/update/", destination)
 		headers := make(http.Header)
-		headers.Add("Content-Type", "text/plain")
+		headers.Add("Content-Type", "application/json")
 
-		resp, err := client.Post(url, nil, headers)
+		request, err := json.Marshal(metric)
+		if err != nil {
+			return err
+		}
+
+		resp, err := client.Post(url, bytes.NewBuffer(request), headers)
 		if err != nil {
 			return err
 		}

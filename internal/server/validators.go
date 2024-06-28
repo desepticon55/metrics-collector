@@ -3,18 +3,20 @@ package server
 import (
 	"github.com/desepticon55/metrics-collector/internal/common"
 	"github.com/go-playground/validator/v10"
+	"slices"
 )
 
-func MetricTypeValidator(fl validator.FieldLevel) bool {
-	metricType := common.MetricType(fl.Field().String())
-	if metricType == "" {
-		return false
-	}
+func MetricValidator(sl validator.StructLevel) {
+	dto := sl.Current().Interface().(common.MetricRequestDto)
 	allowedMetricTypes := []common.MetricType{common.Gauge, common.Counter}
-	for _, t := range allowedMetricTypes {
-		if metricType == t {
-			return true
-		}
+
+	if !slices.Contains(allowedMetricTypes, dto.MType) {
+		sl.ReportError(dto.MType, "MType", "type", "supported", "")
 	}
-	return false
+	if dto.MType == common.Counter && dto.Delta == nil {
+		sl.ReportError(dto.Delta, "Delta", "delta", "required", "")
+	}
+	if dto.MType == common.Gauge && dto.Value == nil {
+		sl.ReportError(dto.Value, "Value", "value", "required", "")
+	}
 }

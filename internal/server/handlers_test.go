@@ -125,7 +125,7 @@ package server
 //		},
 //	}
 //	storage := NewMemStorage()
-//	require.NoError(t, storage.SaveMetric(common.Metric{Name: "some_metric", Type: common.Counter, Value: 9}))
+//	require.NoError(t, storage.SaveMetric(server.Metric{ID: "some_metric", Type: common.Counter, Value: 9}))
 //
 //	router := chi.NewRouter()
 //	router.Method(http.MethodGet, "/value/{type}/{name}", NewReadMetricHandler(storage))
@@ -168,14 +168,14 @@ package server
 //			name: "Fetch all metrics",
 //			expected: expected{
 //				code:        200,
-//				response:    `[{"Name":"some_counter_metric","Type":"counter","Value":9}, {"Name":"some_gauge_metric","Type":"gauge","Value":1.32}]`,
+//				response:    `[{"ID":"some_counter_metric","Type":"counter","Value":9}, {"ID":"some_gauge_metric","Type":"gauge","Value":1.32}]`,
 //				contentType: "text/plain; charset=utf-8",
 //			},
 //		},
 //	}
 //	storage := NewMemStorage()
-//	require.NoError(t, storage.SaveMetric(common.Metric{Name: "some_counter_metric", Type: common.Counter, Value: 9}))
-//	require.NoError(t, storage.SaveMetric(common.Metric{Name: "some_gauge_metric", Type: common.Gauge, Value: 1.32}))
+//	require.NoError(t, storage.SaveMetric(server.Metric{ID: "some_counter_metric", Type: common.Counter, Value: 9}))
+//	require.NoError(t, storage.SaveMetric(server.Metric{ID: "some_gauge_metric", Type: common.Gauge, Value: 1.32}))
 //
 //	router := chi.NewRouter()
 //	router.Method(http.MethodGet, "/", NewReadAllMetricsHandler(storage))
