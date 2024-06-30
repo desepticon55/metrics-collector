@@ -2,6 +2,7 @@ package agent
 
 import (
 	"bytes"
+	"compress/gzip"
 	"encoding/json"
 	"fmt"
 	"github.com/desepticon55/metrics-collector/internal/common"
@@ -30,14 +31,29 @@ func (HTTPMetricsSender) SendMetrics(destination string, metrics []common.Metric
 		url := fmt.Sprintf("http://%s/update/", destination)
 		headers := make(http.Header)
 		headers.Add("Content-Type", "application/json")
+		headers.Add("Content-Encoding", "gzip")
 
 		request, err := json.Marshal(metric)
 		if err != nil {
 			return err
 		}
 
-		resp, err := client.Post(url, bytes.NewBuffer(request), headers)
+		var compressedRequest bytes.Buffer
+		writer := gzip.NewWriter(&compressedRequest)
+		_, err = writer.Write(request)
 		if err != nil {
+			log.Printf("Error during compressed request: %v", err)
+			return err
+		}
+		err = writer.Close()
+		if err != nil {
+			log.Printf("Error closing GZIP writer: %v", err)
+			return err
+		}
+
+		resp, err := client.Post(url, bytes.NewBuffer(compressedRequest.Bytes()), headers)
+		if err != nil {
+			log.Printf("Error during send request: %v", err)
 			return err
 		}
 

@@ -224,11 +224,11 @@ func NewFinAllMetricsHandler(service metricsService, logger *zap.Logger) http.Ha
 			return
 		}
 
+		writer.Header().Set("Content-Type", "text/html")
 		if _, err = writer.Write(bytes); err != nil {
 			http.Error(writer, "Internal server error", http.StatusInternalServerError)
 			return
 		}
-		writer.Header().Set("Content-Type", "application/json")
 		writer.WriteHeader(http.StatusOK)
 	}
 }

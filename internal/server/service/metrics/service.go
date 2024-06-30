@@ -38,8 +38,8 @@ func (s Service) FindOneMetric(metricName string, metricType common.MetricType) 
 func (s Service) FindAllMetrics() []common.MetricResponseDto {
 	metrics := s.storage.FindAllMetrics()
 	dtoList := make([]common.MetricResponseDto, 0, len(metrics))
-	for idx, metric := range metrics {
-		dtoList[idx] = s.mapper.MapDomainModelToResponse(metric)
+	for _, metric := range metrics {
+		dtoList = append(dtoList, s.mapper.MapDomainModelToResponse(metric))
 	}
 	return dtoList
 }

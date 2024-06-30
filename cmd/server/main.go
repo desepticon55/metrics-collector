@@ -38,6 +38,8 @@ func main() {
 	router.Use(middleware.RealIP)
 	router.Use(middleware.Timeout(60 * time.Second))
 	router.Use(customMiddleware.LoggingMiddleware(logger))
+	router.Use(customMiddleware.CompressingMiddleware())
+	router.Use(customMiddleware.DecompressingMiddleware())
 
 	router.Method(http.MethodGet, "/", metricsApi.NewFinAllMetricsHandler(metricsService, logger))
 	router.Method(http.MethodGet, "/value/{type}/{name}", metricsApi.NewFindMetricValueHandler(metricsService, logger))
