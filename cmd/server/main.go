@@ -26,7 +26,7 @@ func main() {
 	config := server.ParseConfig()
 	flag.Parse()
 
-	storage := memory.New()
+	storage := memory.New(config.FileStoragePath, config.Restore, time.Duration(config.StoreInterval)*time.Second)
 	mapper := metricsMappers.NewMapper()
 	metricsService := metricsServices.New(storage, mapper)
 

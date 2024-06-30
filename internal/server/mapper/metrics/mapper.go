@@ -23,9 +23,9 @@ func (mapper) MapRequestToDomainModel(dto common.MetricRequestDto) (server.Metri
 
 	switch dto.MType {
 	case common.Gauge:
-		return server.Metric{Name: dto.ID, Type: common.Gauge, Value: *dto.Value}, nil
+		return server.Metric{Name: dto.ID, Type: common.Gauge, Value: *dto.Value, ValueType: "float64"}, nil
 	case common.Counter:
-		return server.Metric{Name: dto.ID, Type: common.Counter, Value: *dto.Delta}, nil
+		return server.Metric{Name: dto.ID, Type: common.Counter, Value: *dto.Delta, ValueType: "int64"}, nil
 	default:
 		return server.Metric{}, fmt.Errorf("unsupported metric type: %s", dto.MType)
 	}
