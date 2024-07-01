@@ -1,6 +1,9 @@
 package agent
 
 import (
+	"bytes"
+	"compress/gzip"
+	"encoding/json"
 	"fmt"
 	"github.com/desepticon55/metrics-collector/internal/common"
 	"github.com/gojek/heimdall/v7"
@@ -11,13 +14,13 @@ import (
 )
 
 type MetricsSender interface {
-	SendMetrics(destination string, metrics []common.Metric) error
+	SendMetrics(destination string, metrics []common.MetricRequestDto) error
 }
 
 type HTTPMetricsSender struct {
 }
 
-func (s *HTTPMetricsSender) SendMetrics(destination string, metrics []common.Metric) error {
+func (HTTPMetricsSender) SendMetrics(destination string, metrics []common.MetricRequestDto) error {
 	client := httpclient.NewClient(
 		httpclient.WithHTTPTimeout(1*time.Second),
 		httpclient.WithRetrier(heimdall.NewRetrier(heimdall.NewConstantBackoff(2*time.Second, 5*time.Second))),
@@ -25,12 +28,32 @@ func (s *HTTPMetricsSender) SendMetrics(destination string, metrics []common.Met
 	)
 
 	for _, metric := range metrics {
-		url := fmt.Sprintf("http://%s/update/%s/%s/%s", destination, metric.Type, metric.Name, metric.Value)
+		url := fmt.Sprintf("http://%s/update/", destination)
 		headers := make(http.Header)
-		headers.Add("Content-Type", "text/plain")
+		headers.Add("Content-Type", "application/json")
+		headers.Add("Content-Encoding", "gzip")
 
-		resp, err := client.Post(url, nil, headers)
+		request, err := json.Marshal(metric)
 		if err != nil {
+			return err
+		}
+
+		var compressedRequest bytes.Buffer
+		writer := gzip.NewWriter(&compressedRequest)
+		_, err = writer.Write(request)
+		if err != nil {
+			log.Printf("Error during compressed request: %v", err)
+			return err
+		}
+		err = writer.Close()
+		if err != nil {
+			log.Printf("Error closing GZIP writer: %v", err)
+			return err
+		}
+
+		resp, err := client.Post(url, bytes.NewBuffer(compressedRequest.Bytes()), headers)
+		if err != nil {
+			log.Printf("Error during send request: %v", err)
 			return err
 		}
 
