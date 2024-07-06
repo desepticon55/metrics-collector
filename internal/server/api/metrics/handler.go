@@ -1,16 +1,19 @@
 package metrics
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"github.com/desepticon55/metrics-collector/internal/common"
 	"github.com/desepticon55/metrics-collector/internal/server"
 	"github.com/go-chi/chi/v5"
+	"github.com/jackc/pgx/v4"
 	"go.uber.org/zap"
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 )
 
 func NewCreateMetricHandler(service metricsService, logger *zap.Logger) http.HandlerFunc {
@@ -210,7 +213,7 @@ func NewFindOneMetricHandler(service metricsService, logger *zap.Logger) http.Ha
 	}
 }
 
-func NewFinAllMetricsHandler(service metricsService, logger *zap.Logger) http.HandlerFunc {
+func NewFindAllMetricsHandler(service metricsService, logger *zap.Logger) http.HandlerFunc {
 	return func(writer http.ResponseWriter, request *http.Request) {
 		if request.Method != http.MethodGet {
 			http.Error(writer, fmt.Sprintf("Method '%s' is not allowed", request.Method), http.StatusBadRequest)
@@ -227,6 +230,33 @@ func NewFinAllMetricsHandler(service metricsService, logger *zap.Logger) http.Ha
 		writer.Header().Set("Content-Type", "text/html")
 		if _, err = writer.Write(bytes); err != nil {
 			http.Error(writer, "Internal server error", http.StatusInternalServerError)
+			return
+		}
+		writer.WriteHeader(http.StatusOK)
+	}
+}
+
+func NewPingHandler(connect *pgx.Conn, logger *zap.Logger) http.HandlerFunc {
+	return func(writer http.ResponseWriter, request *http.Request) {
+		if request.Method != http.MethodGet {
+			http.Error(writer, fmt.Sprintf("Method '%s' is not allowed", request.Method), http.StatusBadRequest)
+			return
+		}
+
+		if connect == nil {
+			logger.Error("Connect with DB was not created")
+			http.Error(writer, "Connect with DB was not created", http.StatusInternalServerError)
+			return
+		}
+
+		ctx, cancelFunc := context.WithTimeout(request.Context(), 1*time.Second)
+		defer cancelFunc()
+
+		err := connect.Ping(ctx)
+
+		if err != nil {
+			logger.Error("Database is not available", zap.Error(err))
+			http.Error(writer, "Database is not available", http.StatusInternalServerError)
 			return
 		}
 		writer.WriteHeader(http.StatusOK)

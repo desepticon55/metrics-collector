@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"github.com/desepticon55/metrics-collector/internal/common"
@@ -12,6 +13,8 @@ import (
 	"github.com/desepticon55/metrics-collector/internal/server/storage/memory"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
+	"github.com/jackc/pgx/v4"
+	"go.uber.org/zap"
 	"net/http"
 	"time"
 )
@@ -25,6 +28,12 @@ func main() {
 
 	config := server.ParseConfig()
 	flag.Parse()
+
+	connect, err := pgx.Connect(context.Background(), config.DatabaseConnString)
+	if err != nil {
+		logger.Error("Error during connect to database", zap.Error(err))
+	}
+	defer connect.Close(context.Background())
 
 	storage := memory.New(config.FileStoragePath, config.Restore, time.Duration(config.StoreInterval)*time.Second)
 	mapper := metricsMappers.NewMapper()
@@ -41,7 +50,8 @@ func main() {
 	router.Use(customMiddleware.CompressingMiddleware())
 	router.Use(customMiddleware.DecompressingMiddleware())
 
-	router.Method(http.MethodGet, "/", metricsApi.NewFinAllMetricsHandler(metricsService, logger))
+	router.Method(http.MethodGet, "/", metricsApi.NewFindAllMetricsHandler(metricsService, logger))
+	router.Method(http.MethodGet, "/ping", metricsApi.NewPingHandler(connect, logger))
 	router.Method(http.MethodGet, "/value/{type}/{name}", metricsApi.NewFindMetricValueHandler(metricsService, logger))
 	router.Method(http.MethodPost, "/value/", metricsApi.NewFindOneMetricHandler(metricsService, logger))
 	router.Method(http.MethodPost, "/update/{type}/{name}/{value}", metricsApi.NewCreateMetricHandler(metricsService, logger))

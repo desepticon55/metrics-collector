@@ -7,10 +7,11 @@ import (
 )
 
 type Config struct {
-	ServerAddress   string
-	FileStoragePath string
-	StoreInterval   int
-	Restore         bool
+	ServerAddress      string
+	FileStoragePath    string
+	StoreInterval      int
+	Restore            bool
+	DatabaseConnString string
 }
 
 func ParseConfig() Config {
@@ -42,11 +43,18 @@ func ParseConfig() Config {
 	}
 	restore := flag.Bool("r", defaultRestore, "Load data from file or not")
 
+	defaultDatabaseConnString := "postgres://postgres:postgres@localhost:5432/postgres"
+	if envDatabaseConnString, exists := os.LookupEnv("DATABASE_DSN"); exists {
+		defaultDatabaseConnString = envDatabaseConnString
+	}
+	databaseConnString := flag.String("d", defaultDatabaseConnString, "Server address")
+
 	flag.Parse()
 	return Config{
-		ServerAddress:   *address,
-		StoreInterval:   *storeInterval,
-		FileStoragePath: *fileStoragePath,
-		Restore:         *restore,
+		ServerAddress:      *address,
+		StoreInterval:      *storeInterval,
+		FileStoragePath:    *fileStoragePath,
+		Restore:            *restore,
+		DatabaseConnString: *databaseConnString,
 	}
 }
