@@ -11,9 +11,12 @@ import (
 	metricsMappers "github.com/desepticon55/metrics-collector/internal/server/mapper/metrics"
 	metricsServices "github.com/desepticon55/metrics-collector/internal/server/service/metrics"
 	"github.com/desepticon55/metrics-collector/internal/server/storage/memory"
+	"github.com/desepticon55/metrics-collector/internal/server/storage/postgres"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/jackc/pgx/v4"
+	"github.com/jackc/pgx/v4/stdlib"
+	"github.com/pressly/goose/v3"
 	"go.uber.org/zap"
 	"net/http"
 	"time"
@@ -29,17 +32,25 @@ func main() {
 	config := server.ParseConfig()
 	flag.Parse()
 
-	connect, err := pgx.Connect(context.Background(), config.DatabaseConnString)
+	databaseConfig, err := pgx.ParseConfig(config.DatabaseConnString)
 	if err != nil {
-		logger.Error("Error during connect to database", zap.Error(err))
+		logger.Error("Error during parse database URL", zap.Error(err))
 	}
-	defer connect.Close(context.Background())
+	runMigrations(databaseConfig, logger)
+	connection := createConnection(databaseConfig, logger)
+	defer connection.Close(context.Background())
 
-	storage := memory.New(config.FileStoragePath, config.Restore, time.Duration(config.StoreInterval)*time.Second)
 	mapper := metricsMappers.NewMapper()
-	metricsService := metricsServices.New(storage, mapper)
+	var metricsService metricsServices.Service
+	if connection != nil {
+		storage := postgres.New(connection, logger)
+		metricsService = metricsServices.New(storage, mapper)
+	} else {
+		storage := memory.New(config.FileStoragePath, config.Restore, time.Duration(config.StoreInterval)*time.Second)
+		metricsService = metricsServices.New(storage, mapper)
+	}
 
-	fmt.Println("Address:", config.ServerAddress)
+	fmt.Println("Config:", config)
 
 	router := chi.NewRouter()
 	router.Use(middleware.Recoverer)
@@ -51,11 +62,30 @@ func main() {
 	router.Use(customMiddleware.DecompressingMiddleware())
 
 	router.Method(http.MethodGet, "/", metricsApi.NewFindAllMetricsHandler(metricsService, logger))
-	router.Method(http.MethodGet, "/ping", metricsApi.NewPingHandler(connect, logger))
+	router.Method(http.MethodGet, "/ping", metricsApi.NewPingHandler(connection, logger))
 	router.Method(http.MethodGet, "/value/{type}/{name}", metricsApi.NewFindMetricValueHandler(metricsService, logger))
 	router.Method(http.MethodPost, "/value/", metricsApi.NewFindOneMetricHandler(metricsService, logger))
 	router.Method(http.MethodPost, "/update/{type}/{name}/{value}", metricsApi.NewCreateMetricHandler(metricsService, logger))
 	router.Method(http.MethodPost, "/update/", metricsApi.NewCreateMetricHandlerFromJSON(metricsService, logger))
 
 	http.ListenAndServe(config.ServerAddress, router)
+}
+
+func createConnection(databaseConfig *pgx.ConnConfig, logger *zap.Logger) *pgx.Conn {
+	connect, err := pgx.ConnectConfig(context.Background(), databaseConfig)
+	if err != nil {
+		logger.Error("Error during connect to database", zap.Error(err))
+		return nil
+	}
+	return connect
+}
+
+func runMigrations(databaseConfig *pgx.ConnConfig, logger *zap.Logger) {
+	db := stdlib.OpenDB(*databaseConfig)
+	defer db.Close()
+
+	goose.SetDialect("postgres")
+	if err := goose.Up(db, "migrations"); err != nil {
+		logger.Error("Error during run database migrations", zap.Error(err))
+	}
 }

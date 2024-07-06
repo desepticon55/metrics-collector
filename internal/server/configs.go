@@ -2,6 +2,7 @@ package server
 
 import (
 	"flag"
+	"fmt"
 	"os"
 	"strconv"
 )
@@ -14,6 +15,11 @@ type Config struct {
 	DatabaseConnString string
 }
 
+func (c Config) String() string {
+	return fmt.Sprintf("\nServerAddress: %s\nDatabaseConnString: %s\nStoreInterval: %d\nFileStoragePath: %s\nRestore: %t",
+		c.ServerAddress, c.DatabaseConnString, c.StoreInterval, c.FileStoragePath, c.Restore)
+}
+
 func ParseConfig() Config {
 	defaultAddress := "localhost:8080"
 	if envAddr, exists := os.LookupEnv("ADDRESS"); exists {
@@ -21,13 +27,13 @@ func ParseConfig() Config {
 	}
 	address := flag.String("a", defaultAddress, "Server address")
 
-	defaultFileStoragePath := "/tmp/metrics-db.json"
+	defaultFileStoragePath := "C:\\opt\\metrics-db.json"
 	if envFileStoragePath, exists := os.LookupEnv("FILE_STORAGE_PATH"); exists {
 		defaultFileStoragePath = envFileStoragePath
 	}
 	fileStoragePath := flag.String("f", defaultFileStoragePath, "File storage path")
 
-	defaultStoreInterval := 300
+	defaultStoreInterval := 5
 	if envStoreInterval, exists := os.LookupEnv("STORE_INTERVAL"); exists {
 		if parsedStoreInterval, err := strconv.Atoi(envStoreInterval); err == nil {
 			defaultStoreInterval = parsedStoreInterval

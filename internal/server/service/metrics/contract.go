@@ -1,16 +1,17 @@
 package metrics
 
 import (
+	"context"
 	"github.com/desepticon55/metrics-collector/internal/common"
 	"github.com/desepticon55/metrics-collector/internal/server"
 )
 
 type metricStorage interface {
-	SaveMetric(metric server.Metric) (server.Metric, error)
+	SaveMetric(ctx context.Context, metric server.Metric) (server.Metric, error)
 
-	FindOneMetric(metricName string, metricType common.MetricType) (server.Metric, bool)
+	FindOneMetric(ctx context.Context, metricName string, metricType common.MetricType) (server.Metric, bool)
 
-	FindAllMetrics() []server.Metric
+	FindAllMetrics(ctx context.Context) ([]server.Metric, error)
 }
 
 type metricMapper interface {

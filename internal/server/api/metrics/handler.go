@@ -59,7 +59,7 @@ func NewCreateMetricHandler(service metricsService, logger *zap.Logger) http.Han
 			}
 		}
 
-		if _, err := service.SaveMetric(requestDto); err != nil {
+		if _, err := service.SaveMetric(request.Context(), requestDto); err != nil {
 			var validationError *server.ValidationError
 			if errors.As(err, &validationError) {
 				http.Error(writer, err.Error(), http.StatusBadRequest)
@@ -91,7 +91,7 @@ func NewCreateMetricHandlerFromJSON(service metricsService, logger *zap.Logger) 
 			http.Error(writer, err.Error(), http.StatusInternalServerError)
 		}
 
-		metric, err := service.SaveMetric(requestDto)
+		metric, err := service.SaveMetric(request.Context(), requestDto)
 		if err != nil {
 			var validationError *server.ValidationError
 			if errors.As(err, &validationError) {
@@ -128,7 +128,7 @@ func NewFindMetricValueHandler(service metricsService, logger *zap.Logger) http.
 			return
 		}
 
-		metric, err := service.FindOneMetric(metricName, metricType)
+		metric, err := service.FindOneMetric(request.Context(), metricName, metricType)
 		if err != nil {
 			var notFoundError *server.MetricNotFoundError
 			if errors.As(err, &notFoundError) {
@@ -186,7 +186,7 @@ func NewFindOneMetricHandler(service metricsService, logger *zap.Logger) http.Ha
 			return
 		}
 
-		metric, err := service.FindOneMetric(requestDto.ID, requestDto.MType)
+		metric, err := service.FindOneMetric(request.Context(), requestDto.ID, requestDto.MType)
 		if err != nil {
 			var notFoundError *server.MetricNotFoundError
 			if errors.As(err, &notFoundError) {
@@ -220,7 +220,7 @@ func NewFindAllMetricsHandler(service metricsService, logger *zap.Logger) http.H
 			return
 		}
 
-		bytes, err := json.Marshal(service.FindAllMetrics())
+		bytes, err := json.Marshal(service.FindAllMetrics(request.Context()))
 		if err != nil {
 			logger.Error("Error during marshal metric.", zap.Error(err))
 			http.Error(writer, "Internal server error", http.StatusInternalServerError)
@@ -236,14 +236,14 @@ func NewFindAllMetricsHandler(service metricsService, logger *zap.Logger) http.H
 	}
 }
 
-func NewPingHandler(connect *pgx.Conn, logger *zap.Logger) http.HandlerFunc {
+func NewPingHandler(connection *pgx.Conn, logger *zap.Logger) http.HandlerFunc {
 	return func(writer http.ResponseWriter, request *http.Request) {
 		if request.Method != http.MethodGet {
 			http.Error(writer, fmt.Sprintf("Method '%s' is not allowed", request.Method), http.StatusBadRequest)
 			return
 		}
 
-		if connect == nil {
+		if connection == nil {
 			logger.Error("Connect with DB was not created")
 			http.Error(writer, "Connect with DB was not created", http.StatusInternalServerError)
 			return
@@ -252,7 +252,7 @@ func NewPingHandler(connect *pgx.Conn, logger *zap.Logger) http.HandlerFunc {
 		ctx, cancelFunc := context.WithTimeout(request.Context(), 1*time.Second)
 		defer cancelFunc()
 
-		err := connect.Ping(ctx)
+		err := connection.Ping(ctx)
 
 		if err != nil {
 			logger.Error("Database is not available", zap.Error(err))
