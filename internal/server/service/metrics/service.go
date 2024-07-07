@@ -15,17 +15,29 @@ func New(s metricStorage, m metricMapper) Service {
 	return Service{storage: s, mapper: m}
 }
 
-func (s Service) SaveMetric(ctx context.Context, request common.MetricRequestDto) (common.MetricResponseDto, error) {
-	metric, err := s.mapper.MapRequestToDomainModel(request)
-	if err != nil {
-		return common.MetricResponseDto{}, err
+func (s Service) SaveMetrics(ctx context.Context, requests []common.MetricRequestDto) ([]common.MetricResponseDto, error) {
+	var savedMetrics []common.MetricResponseDto
+	var metrics []server.Metric
+
+	for _, request := range requests {
+		metric, err := s.mapper.MapRequestToDomainModel(request)
+		if err != nil {
+			return nil, err
+		}
+
+		metrics = append(metrics, metric)
 	}
 
-	savedMetric, err := s.storage.SaveMetric(ctx, metric)
+	metrics, err := s.storage.SaveMetrics(ctx, metrics)
 	if err != nil {
-		return common.MetricResponseDto{}, err
+		return nil, err
 	}
-	return s.mapper.MapDomainModelToResponse(savedMetric), nil
+
+	for _, metric := range metrics {
+		savedMetrics = append(savedMetrics, s.mapper.MapDomainModelToResponse(metric))
+	}
+
+	return savedMetrics, nil
 }
 
 func (s Service) FindOneMetric(ctx context.Context, metricName string, metricType common.MetricType) (common.MetricResponseDto, error) {

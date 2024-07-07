@@ -6,7 +6,7 @@ import (
 )
 
 type metricsService interface {
-	SaveMetric(ctx context.Context, request common.MetricRequestDto) (common.MetricResponseDto, error)
+	SaveMetrics(ctx context.Context, request []common.MetricRequestDto) ([]common.MetricResponseDto, error)
 
 	FindOneMetric(ctx context.Context, metricName string, metricType common.MetricType) (common.MetricResponseDto, error)
 

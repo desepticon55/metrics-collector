@@ -59,7 +59,7 @@ func NewCreateMetricHandler(service metricsService, logger *zap.Logger) http.Han
 			}
 		}
 
-		if _, err := service.SaveMetric(request.Context(), requestDto); err != nil {
+		if _, err := service.SaveMetrics(request.Context(), []common.MetricRequestDto{requestDto}); err != nil {
 			var validationError *server.ValidationError
 			if errors.As(err, &validationError) {
 				http.Error(writer, err.Error(), http.StatusBadRequest)
@@ -91,7 +91,7 @@ func NewCreateMetricHandlerFromJSON(service metricsService, logger *zap.Logger) 
 			http.Error(writer, err.Error(), http.StatusInternalServerError)
 		}
 
-		metric, err := service.SaveMetric(request.Context(), requestDto)
+		metric, err := service.SaveMetrics(request.Context(), []common.MetricRequestDto{requestDto})
 		if err != nil {
 			var validationError *server.ValidationError
 			if errors.As(err, &validationError) {
@@ -105,11 +105,52 @@ func NewCreateMetricHandlerFromJSON(service metricsService, logger *zap.Logger) 
 		}
 
 		writer.Header().Set("Content-Type", "application/json")
-		if err := json.NewEncoder(writer).Encode(metric); err != nil {
+		if err := json.NewEncoder(writer).Encode(metric[0]); err != nil {
 			logger.Error("Error during encode response", zap.Error(err))
 			http.Error(writer, err.Error(), http.StatusInternalServerError)
 		}
 		writer.WriteHeader(http.StatusOK)
+	}
+}
+
+func NewCreateListMetricsHandlerFromJSON(service metricsService, logger *zap.Logger) http.HandlerFunc {
+	return func(writer http.ResponseWriter, request *http.Request) {
+		if request.Method != http.MethodPost {
+			http.Error(writer, fmt.Sprintf("Method '%s' is not allowed", request.Method), http.StatusBadRequest)
+			return
+		}
+
+		var requestDtoList []common.MetricRequestDto
+		if err := json.NewDecoder(request.Body).Decode(&requestDtoList); err != nil {
+			logger.Error("Error decode request", zap.Error(err))
+			http.Error(writer, err.Error(), http.StatusBadRequest)
+			return
+		}
+		if err := request.Body.Close(); err != nil {
+			logger.Error("Error closing response body", zap.Error(err))
+			http.Error(writer, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		savedMetrics, err := service.SaveMetrics(request.Context(), requestDtoList)
+		if err != nil {
+			var validationError *server.ValidationError
+			if errors.As(err, &validationError) {
+				logger.Error("Validation was failed", zap.Error(err))
+				http.Error(writer, err.Error(), http.StatusBadRequest)
+			} else {
+				logger.Error("Internal server error", zap.Error(err))
+				http.Error(writer, err.Error(), http.StatusInternalServerError)
+			}
+			return
+		}
+
+		writer.Header().Set("Content-Type", "application/json")
+		writer.WriteHeader(http.StatusOK)
+		if err := json.NewEncoder(writer).Encode(savedMetrics); err != nil {
+			logger.Error("Error during encode response", zap.Error(err))
+			http.Error(writer, err.Error(), http.StatusInternalServerError)
+		}
 	}
 }
 

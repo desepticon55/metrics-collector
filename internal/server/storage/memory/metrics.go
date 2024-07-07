@@ -40,31 +40,41 @@ func New(file string, isNeedLoadData bool, saveInterval time.Duration) *Storage 
 	return storage
 }
 
-func (s *Storage) SaveMetric(ctx context.Context, metric server.Metric) (server.Metric, error) {
+func (s *Storage) SaveMetrics(ctx context.Context, metrics []server.Metric) ([]server.Metric, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	key := fmt.Sprintf("%s_%s", metric.GetName(), metric.GetType())
-	foundMetric, exists := s.metrics[key]
-	if !exists {
-		s.metrics[key] = metric
-	} else {
-		if metric.GetType() == common.Counter {
-			foundCounter := foundMetric.(*server.Counter)
-			newCounter := metric.(*server.Counter)
-			foundCounter.Value += newCounter.Value
-			s.metrics[key] = foundCounter
-		} else {
+
+	var savedMetrics []server.Metric
+
+	for _, metric := range metrics {
+		key := fmt.Sprintf("%s_%s", metric.GetName(), metric.GetType())
+		foundMetric, exists := s.metrics[key]
+		if !exists {
 			s.metrics[key] = metric
+			savedMetrics = append(savedMetrics, metric)
+		} else {
+			if metric.GetType() == common.Counter {
+				foundCounter := foundMetric.(*server.Counter)
+				newCounter := metric.(*server.Counter)
+				foundCounter.Value += newCounter.Value
+				s.metrics[key] = foundCounter
+				savedMetrics = append(savedMetrics, foundCounter)
+			} else {
+				s.metrics[key] = metric
+				savedMetrics = append(savedMetrics, metric)
+			}
 		}
 	}
+
 	if !s.autoSaveEnabled {
 		err := s.saveToFile()
 		if err != nil {
-			log.Printf("Error during save metric to file: %v", err)
-			return nil, err
+			log.Printf("Error during save metrics to file: %v", err)
+			return savedMetrics, err
 		}
 	}
-	return s.metrics[key], nil
+
+	return savedMetrics, nil
 }
 
 func (s *Storage) FindOneMetric(ctx context.Context, metricName string, metricType common.MetricType) (server.Metric, bool) {

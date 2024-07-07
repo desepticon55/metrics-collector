@@ -7,7 +7,7 @@ import (
 )
 
 type metricStorage interface {
-	SaveMetric(ctx context.Context, metric server.Metric) (server.Metric, error)
+	SaveMetrics(ctx context.Context, metrics []server.Metric) ([]server.Metric, error)
 
 	FindOneMetric(ctx context.Context, metricName string, metricType common.MetricType) (server.Metric, bool)
 
