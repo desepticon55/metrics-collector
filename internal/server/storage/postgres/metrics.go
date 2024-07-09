@@ -7,24 +7,31 @@ import (
 	"github.com/desepticon55/metrics-collector/internal/common"
 	"github.com/desepticon55/metrics-collector/internal/server"
 	"github.com/jackc/pgx/v4"
+	"github.com/jackc/pgx/v4/pgxpool"
 	"go.uber.org/zap"
 	"strconv"
 )
 
 type Storage struct {
-	connection *pgx.Conn
-	logger     *zap.Logger
+	pool   *pgxpool.Pool
+	logger *zap.Logger
 }
 
-func New(connection *pgx.Conn, logger *zap.Logger) *Storage {
+func New(pool *pgxpool.Pool, logger *zap.Logger) *Storage {
 	return &Storage{
-		connection: connection,
-		logger:     logger,
+		pool:   pool,
+		logger: logger,
 	}
 }
 
 func (s *Storage) SaveMetrics(ctx context.Context, metrics []server.Metric) ([]server.Metric, error) {
-	tx, err := s.connection.Begin(ctx)
+	connection, err := s.pool.Acquire(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("error acquiring connection from pool: %w", err)
+	}
+	defer connection.Release()
+
+	tx, err := connection.Begin(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -53,7 +60,14 @@ func (s *Storage) SaveMetrics(ctx context.Context, metrics []server.Metric) ([]s
 }
 
 func (s *Storage) FindOneMetric(ctx context.Context, metricName string, metricType common.MetricType) (server.Metric, bool) {
-	tx, err := s.connection.Begin(ctx)
+	connection, err := s.pool.Acquire(ctx)
+	if err != nil {
+		s.logger.Error("Error acquiring connection from pool", zap.Error(err))
+		return nil, false
+	}
+	defer connection.Release()
+
+	tx, err := connection.Begin(ctx)
 	if err != nil {
 		s.logger.Error("Error during begin transaction", zap.Error(err))
 		return nil, false
@@ -79,8 +93,14 @@ func (s *Storage) FindOneMetric(ctx context.Context, metricName string, metricTy
 }
 
 func (s *Storage) FindAllMetrics(ctx context.Context) ([]server.Metric, error) {
+	connection, err := s.pool.Acquire(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("error acquiring connection from pool: %w", err)
+	}
+	defer connection.Release()
+
 	query := "SELECT name, type, value FROM mt_cl.metrics"
-	rows, err := s.connection.Query(ctx, query)
+	rows, err := connection.Query(ctx, query)
 	if err != nil {
 		return nil, err
 	}

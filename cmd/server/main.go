@@ -15,6 +15,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/jackc/pgx/v4"
+	"github.com/jackc/pgx/v4/pgxpool"
 	"github.com/jackc/pgx/v4/stdlib"
 	"github.com/pressly/goose/v3"
 	"go.uber.org/zap"
@@ -32,23 +33,20 @@ func main() {
 	config := server.ParseConfig()
 	flag.Parse()
 
-	databaseConfig, err := pgx.ParseConfig(config.DatabaseConnString)
-	if err != nil {
-		logger.Error("Error during parse database URL", zap.Error(err))
-	}
-	runMigrations(databaseConfig, logger)
-	connection := createConnection(databaseConfig, logger)
-	defer connection.Close(context.Background())
-
 	mapper := metricsMappers.NewMapper()
 	var metricsService metricsServices.Service
-	if connection != nil {
-		storage := postgres.New(connection, logger)
-		metricsService = metricsServices.New(storage, mapper)
-	} else {
+	pool, err := createConnectionPool(context.Background(), config.DatabaseConnString)
+	if err != nil {
+		logger.Debug("Run with memory/file storage")
 		storage := memory.New(config.FileStoragePath, config.Restore, time.Duration(config.StoreInterval)*time.Second)
-		metricsService = metricsServices.New(storage, mapper)
+		metricsService = metricsServices.New(storage, mapper, server.NewRetrier(3, 1*time.Second, 5*time.Second))
+	} else {
+		logger.Debug("Run with Postgres storage")
+		runMigrations(config.DatabaseConnString, logger)
+		storage := postgres.New(pool, logger)
+		metricsService = metricsServices.New(storage, mapper, server.NewRetrier(3, 1*time.Second, 5*time.Second))
 	}
+	defer pool.Close()
 
 	fmt.Println("Config:", config)
 
@@ -62,7 +60,7 @@ func main() {
 	router.Use(customMiddleware.DecompressingMiddleware())
 
 	router.Method(http.MethodGet, "/", metricsApi.NewFindAllMetricsHandler(metricsService, logger))
-	router.Method(http.MethodGet, "/ping", metricsApi.NewPingHandler(connection, logger))
+	router.Method(http.MethodGet, "/ping", metricsApi.NewPingHandler(pool, logger))
 	router.Method(http.MethodGet, "/value/{type}/{name}", metricsApi.NewFindMetricValueHandler(metricsService, logger))
 	router.Method(http.MethodPost, "/value/", metricsApi.NewFindOneMetricHandler(metricsService, logger))
 	router.Method(http.MethodPost, "/update/{type}/{name}/{value}", metricsApi.NewCreateMetricHandler(metricsService, logger))
@@ -72,16 +70,25 @@ func main() {
 	http.ListenAndServe(config.ServerAddress, router)
 }
 
-func createConnection(databaseConfig *pgx.ConnConfig, logger *zap.Logger) *pgx.Conn {
-	connect, err := pgx.ConnectConfig(context.Background(), databaseConfig)
+func createConnectionPool(ctx context.Context, connectionString string) (*pgxpool.Pool, error) {
+	config, err := pgxpool.ParseConfig(connectionString)
 	if err != nil {
-		logger.Error("Error during connect to database", zap.Error(err))
-		return nil
+		return nil, fmt.Errorf("error parsing database config: %w", err)
 	}
-	return connect
+
+	pool, err := pgxpool.ConnectConfig(ctx, config)
+	if err != nil {
+		return nil, fmt.Errorf("error connecting to the database: %w", err)
+	}
+
+	return pool, nil
 }
 
-func runMigrations(databaseConfig *pgx.ConnConfig, logger *zap.Logger) {
+func runMigrations(connectionString string, logger *zap.Logger) {
+	databaseConfig, err := pgx.ParseConfig(connectionString)
+	if err != nil {
+		logger.Error("Error during parse database URL", zap.Error(err))
+	}
 	db := stdlib.OpenDB(*databaseConfig)
 	defer db.Close()
 

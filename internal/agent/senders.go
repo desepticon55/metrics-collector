@@ -21,9 +21,10 @@ type HTTPMetricsSender struct {
 }
 
 func (s HTTPMetricsSender) SendMetrics(destination string, metrics []common.MetricRequestDto) error {
+	backoff := heimdall.NewExponentialBackoff(1*time.Second, 5*time.Second, 2, 0)
 	client := httpclient.NewClient(
 		httpclient.WithHTTPTimeout(1*time.Second),
-		httpclient.WithRetrier(heimdall.NewRetrier(heimdall.NewConstantBackoff(2*time.Second, 5*time.Second))),
+		httpclient.WithRetrier(heimdall.NewRetrier(backoff)),
 		httpclient.WithRetryCount(3),
 	)
 

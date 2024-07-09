@@ -8,7 +8,7 @@ import (
 	"github.com/desepticon55/metrics-collector/internal/common"
 	"github.com/desepticon55/metrics-collector/internal/server"
 	"github.com/go-chi/chi/v5"
-	"github.com/jackc/pgx/v4"
+	"github.com/jackc/pgx/v4/pgxpool"
 	"go.uber.org/zap"
 	"net/http"
 	"strconv"
@@ -277,14 +277,14 @@ func NewFindAllMetricsHandler(service metricsService, logger *zap.Logger) http.H
 	}
 }
 
-func NewPingHandler(connection *pgx.Conn, logger *zap.Logger) http.HandlerFunc {
+func NewPingHandler(pool *pgxpool.Pool, logger *zap.Logger) http.HandlerFunc {
 	return func(writer http.ResponseWriter, request *http.Request) {
 		if request.Method != http.MethodGet {
 			http.Error(writer, fmt.Sprintf("Method '%s' is not allowed", request.Method), http.StatusBadRequest)
 			return
 		}
 
-		if connection == nil {
+		if pool == nil {
 			logger.Error("Connect with DB was not created")
 			http.Error(writer, "Connect with DB was not created", http.StatusInternalServerError)
 			return
@@ -293,7 +293,7 @@ func NewPingHandler(connection *pgx.Conn, logger *zap.Logger) http.HandlerFunc {
 		ctx, cancelFunc := context.WithTimeout(request.Context(), 1*time.Second)
 		defer cancelFunc()
 
-		err := connection.Ping(ctx)
+		err := pool.Ping(ctx)
 
 		if err != nil {
 			logger.Error("Database is not available", zap.Error(err))

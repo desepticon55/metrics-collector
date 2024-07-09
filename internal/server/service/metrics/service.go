@@ -9,10 +9,11 @@ import (
 type Service struct {
 	storage metricStorage
 	mapper  metricMapper
+	retrier *server.Retrier
 }
 
-func New(s metricStorage, m metricMapper) Service {
-	return Service{storage: s, mapper: m}
+func New(s metricStorage, m metricMapper, retrier *server.Retrier) Service {
+	return Service{storage: s, mapper: m, retrier: retrier}
 }
 
 func (s Service) SaveMetrics(ctx context.Context, requests []common.MetricRequestDto) ([]common.MetricResponseDto, error) {
@@ -28,13 +29,20 @@ func (s Service) SaveMetrics(ctx context.Context, requests []common.MetricReques
 		metrics = append(metrics, metric)
 	}
 
-	metrics, err := s.storage.SaveMetrics(ctx, metrics)
+	err := s.retrier.RunSQL(func() error {
+		metrics, err := s.storage.SaveMetrics(ctx, metrics)
+		if err != nil {
+			return err
+		}
+
+		for _, metric := range metrics {
+			savedMetrics = append(savedMetrics, s.mapper.MapDomainModelToResponse(metric))
+		}
+		return nil
+	})
+
 	if err != nil {
 		return nil, err
-	}
-
-	for _, metric := range metrics {
-		savedMetrics = append(savedMetrics, s.mapper.MapDomainModelToResponse(metric))
 	}
 
 	return savedMetrics, nil
