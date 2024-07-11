@@ -1,7 +1,7 @@
 -- +goose Up
-CREATE SCHEMA mt_cl AUTHORIZATION postgres;
-GRANT USAGE ON SCHEMA mt_cl TO postgres;
-GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA mt_cl TO postgres;
+CREATE SCHEMA mtr_collector AUTHORIZATION postgres;
+GRANT USAGE ON SCHEMA mtr_collector TO postgres;
+GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA mtr_collector TO postgres;
 
 -- +goose Down
-DROP SCHEMA mt_cl;
+DROP SCHEMA mtr_collector;

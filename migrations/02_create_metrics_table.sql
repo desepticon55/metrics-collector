@@ -1,5 +1,5 @@
 -- +goose Up
-CREATE TABLE mt_cl.metrics
+CREATE TABLE mtr_collector.metrics
 (
     name       VARCHAR(50),
     type       VARCHAR(20),
@@ -8,4 +8,4 @@ CREATE TABLE mt_cl.metrics
 );
 
 -- +goose Down
-DROP TABLE mt_cl.metrics;
+DROP TABLE mtr_collector.metrics;

@@ -46,7 +46,6 @@ func main() {
 		storage := postgres.New(pool, logger)
 		metricsService = metricsServices.New(storage, mapper, server.NewRetrier(3, 1*time.Second, 5*time.Second))
 	}
-	defer pool.Close()
 
 	fmt.Println("Config:", config)
 
@@ -88,6 +87,7 @@ func runMigrations(connectionString string, logger *zap.Logger) {
 	databaseConfig, err := pgx.ParseConfig(connectionString)
 	if err != nil {
 		logger.Error("Error during parse database URL", zap.Error(err))
+		return
 	}
 	db := stdlib.OpenDB(*databaseConfig)
 	defer db.Close()

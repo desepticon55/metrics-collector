@@ -9,7 +9,6 @@ import (
 	"github.com/jackc/pgx/v4"
 	"github.com/jackc/pgx/v4/pgxpool"
 	"go.uber.org/zap"
-	"strconv"
 )
 
 type Storage struct {
@@ -24,126 +23,20 @@ func New(pool *pgxpool.Pool, logger *zap.Logger) *Storage {
 	}
 }
 
-func (s *Storage) SaveMetrics(ctx context.Context, metrics []server.Metric) ([]server.Metric, error) {
-	connection, err := s.pool.Acquire(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("error acquiring connection from pool: %w", err)
-	}
-	defer connection.Release()
-
-	tx, err := connection.Begin(ctx)
-	if err != nil {
-		return nil, err
-	}
-	defer func() {
-		if p := recover(); p != nil {
-			_ = tx.Rollback(ctx)
-			panic(p)
-		} else if err != nil {
-			_ = tx.Rollback(ctx)
-		} else {
-			_ = tx.Commit(ctx)
-		}
-	}()
-
-	var savedMetrics []server.Metric
-
-	for _, metric := range metrics {
-		savedMetric, err := s.saveMetricWithTx(ctx, tx, metric)
-		if err != nil {
-			return savedMetrics, err
-		}
-		savedMetrics = append(savedMetrics, savedMetric)
-	}
-
-	return savedMetrics, nil
-}
-
 func (s *Storage) FindOneMetric(ctx context.Context, metricName string, metricType common.MetricType) (server.Metric, bool) {
-	connection, err := s.pool.Acquire(ctx)
-	if err != nil {
-		s.logger.Error("Error acquiring connection from pool", zap.Error(err))
-		return nil, false
-	}
-	defer connection.Release()
+	query := "SELECT value FROM mtr_collector.metrics WHERE name=$1 AND type=$2"
 
-	tx, err := connection.Begin(ctx)
-	if err != nil {
-		s.logger.Error("Error during begin transaction", zap.Error(err))
-		return nil, false
-	}
-	defer func() {
-		if p := recover(); p != nil {
-			_ = tx.Rollback(ctx)
-			panic(p)
-		} else if err != nil {
-			_ = tx.Rollback(ctx)
-		} else {
-			_ = tx.Commit(ctx)
-		}
-	}()
-
-	metric, exists, err := s.findOneMetricWithTx(ctx, tx, metricName, metricType)
-	if err != nil {
-		s.logger.Error("Error during find metric", zap.Error(err))
-		return nil, false
-	}
-
-	return metric, exists
-}
-
-func (s *Storage) FindAllMetrics(ctx context.Context) ([]server.Metric, error) {
-	connection, err := s.pool.Acquire(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("error acquiring connection from pool: %w", err)
-	}
-	defer connection.Release()
-
-	query := "SELECT name, type, value FROM mt_cl.metrics"
-	rows, err := connection.Query(ctx, query)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	var metrics []server.Metric
-	for rows.Next() {
-		var name string
-		var metricType string
-		var valueStr string
-
-		err := rows.Scan(&name, &metricType, &valueStr)
-		if err != nil {
-			return nil, err
-		}
-
-		metric, err := s.createMetricFromRow(name, metricType, valueStr)
-		if err != nil {
-			s.logger.Error("Error during create metric from row", zap.Error(err))
-			continue
-		}
-
-		metrics = append(metrics, metric)
-	}
-
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-
-	return metrics, nil
-}
-
-func (s *Storage) findOneMetricWithTx(ctx context.Context, tx pgx.Tx, metricName string, metricType common.MetricType) (server.Metric, bool, error) {
-	query := "SELECT value FROM mt_cl.metrics WHERE name=$1 AND type=$2"
-	row := tx.QueryRow(ctx, query, metricName, metricType)
+	row := s.pool.QueryRow(ctx, query, metricName, metricType)
 
 	var valueStr string
 	err := row.Scan(&valueStr)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, false, nil
+			s.logger.Info("Metric not found", zap.String("metricName", metricName), zap.String("metricType", string(metricType)))
+			return nil, false
 		}
-		return nil, false, err
+		s.logger.Error("Error during find metric", zap.Error(err))
+		return nil, false
 	}
 
 	var metric server.Metric
@@ -157,44 +50,112 @@ func (s *Storage) findOneMetricWithTx(ctx context.Context, tx pgx.Tx, metricName
 			BaseMetric: server.BaseMetric{Name: metricName, Type: common.Counter},
 		}
 	default:
-		return nil, false, errors.New("unsupported metric type")
+		s.logger.Error("Unsupported metric type", zap.String("metricType", string(metricType)))
+		return nil, false
 	}
 
 	err = metric.SetValueFromString(valueStr)
 	if err != nil {
-		return nil, false, err
+		s.logger.Error("Error setting metric value from string", zap.Error(err))
+		return nil, false
 	}
 
-	return metric, true, nil
+	return metric, true
 }
 
-func (s *Storage) saveMetricWithTx(ctx context.Context, tx pgx.Tx, metric server.Metric) (server.Metric, error) {
-	existingMetric, exists, err := s.findOneMetricWithTx(ctx, tx, metric.GetName(), metric.GetType())
+func (s *Storage) FindAllMetrics(ctx context.Context) ([]server.Metric, error) {
+	query := "SELECT name, type, value FROM mtr_collector.metrics"
+	rows, err := s.pool.Query(ctx, query)
+	if err != nil {
+		return nil, fmt.Errorf("error executing query: %w", err)
+	}
+	defer rows.Close()
+
+	var metrics []server.Metric
+	for rows.Next() {
+		var name, metricType, valueStr string
+		if err := rows.Scan(&name, &metricType, &valueStr); err != nil {
+			s.logger.Error("Error scanning row", zap.Error(err))
+			continue
+		}
+
+		metric, err := s.createMetricFromRow(name, metricType, valueStr)
+		if err != nil {
+			s.logger.Error("Error creating metric from row", zap.String("name", name), zap.String("type", metricType), zap.Error(err))
+			continue
+		}
+
+		metrics = append(metrics, metric)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating over rows: %w", err)
+	}
+
+	return metrics, nil
+}
+
+func (s *Storage) SaveMetrics(ctx context.Context, metrics []server.Metric) ([]server.Metric, error) {
+	savedMetrics, err := s.saveMetricsWithTx(ctx, metrics)
+	if err != nil {
+		s.logger.Error("Error saving metrics", zap.Error(err))
+		return nil, err
+	}
+
+	s.logger.Info("Successfully saved metrics", zap.Int("saved_metrics_count", len(savedMetrics)))
+	return savedMetrics, nil
+}
+
+func (s *Storage) saveMetricsWithTx(ctx context.Context, metrics []server.Metric) ([]server.Metric, error) {
+	var savedMetrics []server.Metric
+	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	if !exists {
-		err = s.createMetric(ctx, tx, metric)
+	for _, metric := range metrics {
+		savedMetric, err := s.saveMetricWithTx(ctx, tx, metric)
 		if err != nil {
-			return nil, err
+			rollbackErr := tx.Rollback(ctx)
+			return nil, errors.Join(err, rollbackErr)
 		}
-	} else {
-		if metric.GetType() == common.Counter {
-			err = s.updateCounterValues(existingMetric, metric)
-			if err != nil {
-				return nil, err
-			}
-		}
-		valueStr, err := metric.GetValueAsString()
-		if err != nil {
-			return nil, err
-		}
-		query := "UPDATE mt_cl.metrics SET value=$1 WHERE name=$2 AND type=$3"
-		_, err = tx.Exec(ctx, query, valueStr, metric.GetName(), metric.GetType())
-		if err != nil {
-			return nil, err
-		}
+		savedMetrics = append(savedMetrics, savedMetric)
+	}
+	err = tx.Commit(ctx)
+	if err != nil {
+		rollbackErr := tx.Rollback(ctx)
+		return nil, errors.Join(err, rollbackErr)
+	}
+	return savedMetrics, nil
+}
+
+func (s *Storage) saveMetricWithTx(ctx context.Context, tx pgx.Tx, metric server.Metric) (server.Metric, error) {
+	valueStr, err := metric.GetValueAsString()
+	if err != nil {
+		return nil, err
+	}
+
+	query := `
+        INSERT INTO mtr_collector.metrics (name, type, value)
+        VALUES ($1, $2, $3)
+        ON CONFLICT (name, type)
+        DO UPDATE SET value = 
+        CASE
+            WHEN metrics.type = 'counter' THEN 
+                (CAST(metrics.value AS BIGINT) + CAST(EXCLUDED.value AS BIGINT))::TEXT
+            ELSE EXCLUDED.value
+        END
+        RETURNING value
+    `
+	var updatedValueStr string
+	err = tx.QueryRow(ctx, query, metric.GetName(), metric.GetType(), valueStr).Scan(&updatedValueStr)
+	if err != nil {
+		return nil, err
+	}
+
+	err = metric.SetValueFromString(updatedValueStr)
+	if err != nil {
+		return nil, err
 	}
 
 	return metric, nil
@@ -221,36 +182,4 @@ func (s *Storage) createMetricFromRow(name, metricType, valueStr string) (server
 	}
 
 	return metric, nil
-}
-
-func (s *Storage) createMetric(ctx context.Context, tx pgx.Tx, metric server.Metric) error {
-	valueStr, err := metric.GetValueAsString()
-	if err != nil {
-		return err
-	}
-
-	query := "INSERT INTO mt_cl.metrics (name, type, value) VALUES ($1, $2, $3)"
-	_, err = tx.Exec(ctx, query, metric.GetName(), metric.GetType(), valueStr)
-	return err
-}
-
-func (s *Storage) updateCounterValues(existingMetric, newMetric server.Metric) error {
-	oldValueStr, err := existingMetric.GetValueAsString()
-	if err != nil {
-		return err
-	}
-	oldValue, err := strconv.ParseInt(oldValueStr, 10, 64)
-	if err != nil {
-		return err
-	}
-	newValueStr, err := newMetric.GetValueAsString()
-	if err != nil {
-		return err
-	}
-	newValue, err := strconv.ParseInt(newValueStr, 10, 64)
-	if err != nil {
-		return err
-	}
-	newMetric.(*server.Counter).Value = oldValue + newValue
-	return nil
 }
