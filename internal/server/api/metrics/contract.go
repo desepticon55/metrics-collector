@@ -1,11 +1,14 @@
 package metrics
 
-import "github.com/desepticon55/metrics-collector/internal/common"
+import (
+	"context"
+	"github.com/desepticon55/metrics-collector/internal/common"
+)
 
 type metricsService interface {
-	SaveMetric(request common.MetricRequestDto) (common.MetricResponseDto, error)
+	SaveMetrics(ctx context.Context, request []common.MetricRequestDto) ([]common.MetricResponseDto, error)
 
-	FindOneMetric(metricName string, metricType common.MetricType) (common.MetricResponseDto, error)
+	FindOneMetric(ctx context.Context, metricName string, metricType common.MetricType) (common.MetricResponseDto, error)
 
-	FindAllMetrics() []common.MetricResponseDto
+	FindAllMetrics(ctx context.Context) []common.MetricResponseDto
 }

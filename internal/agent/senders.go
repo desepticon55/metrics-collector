@@ -20,46 +20,46 @@ type MetricsSender interface {
 type HTTPMetricsSender struct {
 }
 
-func (HTTPMetricsSender) SendMetrics(destination string, metrics []common.MetricRequestDto) error {
+func (s HTTPMetricsSender) SendMetrics(destination string, metrics []common.MetricRequestDto) error {
+	backoff := heimdall.NewExponentialBackoff(1*time.Second, 5*time.Second, 2, 0)
 	client := httpclient.NewClient(
 		httpclient.WithHTTPTimeout(1*time.Second),
-		httpclient.WithRetrier(heimdall.NewRetrier(heimdall.NewConstantBackoff(2*time.Second, 5*time.Second))),
+		httpclient.WithRetrier(heimdall.NewRetrier(backoff)),
 		httpclient.WithRetryCount(3),
 	)
 
-	for _, metric := range metrics {
-		url := fmt.Sprintf("http://%s/update/", destination)
-		headers := make(http.Header)
-		headers.Add("Content-Type", "application/json")
-		headers.Add("Content-Encoding", "gzip")
+	url := fmt.Sprintf("http://%s/updates/", destination)
+	headers := make(http.Header)
+	headers.Add("Content-Type", "application/json")
+	headers.Add("Content-Encoding", "gzip")
 
-		request, err := json.Marshal(metric)
-		if err != nil {
-			return err
-		}
+	requestBody, err := json.Marshal(metrics)
+	if err != nil {
+		log.Printf("Error during JSON marshaling: %v", err)
+		return err
+	}
 
-		var compressedRequest bytes.Buffer
-		writer := gzip.NewWriter(&compressedRequest)
-		_, err = writer.Write(request)
-		if err != nil {
-			log.Printf("Error during compressed request: %v", err)
-			return err
-		}
-		err = writer.Close()
-		if err != nil {
-			log.Printf("Error closing GZIP writer: %v", err)
-			return err
-		}
+	var compressedRequest bytes.Buffer
+	writer := gzip.NewWriter(&compressedRequest)
+	_, err = writer.Write(requestBody)
+	if err != nil {
+		log.Printf("Error during compressing request: %v", err)
+		return err
+	}
+	err = writer.Close()
+	if err != nil {
+		log.Printf("Error closing GZIP writer: %v", err)
+		return err
+	}
 
-		resp, err := client.Post(url, bytes.NewBuffer(compressedRequest.Bytes()), headers)
-		if err != nil {
-			log.Printf("Error during send request: %v", err)
-			return err
-		}
+	resp, err := client.Post(url, bytes.NewBuffer(compressedRequest.Bytes()), headers)
+	if err != nil {
+		log.Printf("Error during sending request: %v", err)
+		return err
+	}
 
-		if err := resp.Body.Close(); err != nil {
-			log.Printf("Error closing response body: %v", err)
-		}
+	if err := resp.Body.Close(); err != nil {
+		log.Printf("Error closing response body: %v", err)
 	}
 
 	return nil

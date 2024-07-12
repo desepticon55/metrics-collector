@@ -1,6 +1,7 @@
 package memory
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"github.com/desepticon55/metrics-collector/internal/common"
@@ -39,36 +40,44 @@ func New(file string, isNeedLoadData bool, saveInterval time.Duration) *Storage 
 	return storage
 }
 
-func (s *Storage) SaveMetric(metric server.Metric) (server.Metric, error) {
+func (s *Storage) SaveMetrics(ctx context.Context, metrics []server.Metric) ([]server.Metric, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	key := fmt.Sprintf("%s_%s", metric.Name, metric.Type)
-	foundMetric, exists := s.metrics[key]
-	if !exists {
-		s.metrics[key] = metric
-	} else {
-		if metric.Type == common.Counter {
-			s.metrics[key] = server.Metric{
-				Name:      metric.Name,
-				Type:      metric.Type,
-				Value:     metric.Value.(int64) + foundMetric.Value.(int64),
-				ValueType: "int64",
-			}
-		} else {
+
+	var savedMetrics []server.Metric
+
+	for _, metric := range metrics {
+		key := fmt.Sprintf("%s_%s", metric.GetName(), metric.GetType())
+		foundMetric, exists := s.metrics[key]
+		if !exists {
 			s.metrics[key] = metric
+			savedMetrics = append(savedMetrics, metric)
+		} else {
+			if metric.GetType() == common.Counter {
+				foundCounter := foundMetric.(*server.Counter)
+				newCounter := metric.(*server.Counter)
+				foundCounter.Value += newCounter.Value
+				s.metrics[key] = foundCounter
+				savedMetrics = append(savedMetrics, foundCounter)
+			} else {
+				s.metrics[key] = metric
+				savedMetrics = append(savedMetrics, metric)
+			}
 		}
 	}
+
 	if !s.autoSaveEnabled {
 		err := s.saveToFile()
 		if err != nil {
-			log.Printf("Error during save metric to file: %v", err)
-			return server.Metric{}, err
+			log.Printf("Error during save metrics to file: %v", err)
+			return savedMetrics, err
 		}
 	}
-	return s.metrics[key], nil
+
+	return savedMetrics, nil
 }
 
-func (s *Storage) FindOneMetric(metricName string, metricType common.MetricType) (server.Metric, bool) {
+func (s *Storage) FindOneMetric(ctx context.Context, metricName string, metricType common.MetricType) (server.Metric, bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -77,7 +86,7 @@ func (s *Storage) FindOneMetric(metricName string, metricType common.MetricType)
 	return metric, exists
 }
 
-func (s *Storage) FindAllMetrics() []server.Metric {
+func (s *Storage) FindAllMetrics(ctx context.Context) ([]server.Metric, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -85,7 +94,7 @@ func (s *Storage) FindAllMetrics() []server.Metric {
 	for _, value := range s.metrics {
 		values = append(values, value)
 	}
-	return values
+	return values, nil
 }
 
 func (s *Storage) loadFromFile() error {
@@ -101,8 +110,21 @@ func (s *Storage) loadFromFile() error {
 	}
 	defer file.Close()
 
+	var metricsMap map[string]json.RawMessage
 	decoder := json.NewDecoder(file)
-	return decoder.Decode(&s.metrics)
+	if err := decoder.Decode(&metricsMap); err != nil {
+		return err
+	}
+
+	for key, raw := range metricsMap {
+		metric, err := server.UnmarshalMetric(raw)
+		if err != nil {
+			return err
+		}
+		s.metrics[key] = metric
+	}
+
+	return nil
 }
 
 func (s *Storage) saveToFile() error {
@@ -115,8 +137,17 @@ func (s *Storage) saveToFile() error {
 	}
 	defer file.Close()
 
+	metricsMap := make(map[string]json.RawMessage)
+	for key, metric := range s.metrics {
+		data, err := server.MarshalMetric(metric)
+		if err != nil {
+			return err
+		}
+		metricsMap[key] = data
+	}
+
 	encoder := json.NewEncoder(file)
-	return encoder.Encode(s.metrics)
+	return encoder.Encode(metricsMap)
 }
 
 func (s *Storage) startAutoSave() {

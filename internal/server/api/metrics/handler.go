@@ -1,16 +1,19 @@
 package metrics
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"github.com/desepticon55/metrics-collector/internal/common"
 	"github.com/desepticon55/metrics-collector/internal/server"
 	"github.com/go-chi/chi/v5"
+	"github.com/jackc/pgx/v4/pgxpool"
 	"go.uber.org/zap"
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 )
 
 func NewCreateMetricHandler(service metricsService, logger *zap.Logger) http.HandlerFunc {
@@ -56,7 +59,7 @@ func NewCreateMetricHandler(service metricsService, logger *zap.Logger) http.Han
 			}
 		}
 
-		if _, err := service.SaveMetric(requestDto); err != nil {
+		if _, err := service.SaveMetrics(request.Context(), []common.MetricRequestDto{requestDto}); err != nil {
 			var validationError *server.ValidationError
 			if errors.As(err, &validationError) {
 				http.Error(writer, err.Error(), http.StatusBadRequest)
@@ -88,7 +91,7 @@ func NewCreateMetricHandlerFromJSON(service metricsService, logger *zap.Logger) 
 			http.Error(writer, err.Error(), http.StatusInternalServerError)
 		}
 
-		metric, err := service.SaveMetric(requestDto)
+		metric, err := service.SaveMetrics(request.Context(), []common.MetricRequestDto{requestDto})
 		if err != nil {
 			var validationError *server.ValidationError
 			if errors.As(err, &validationError) {
@@ -102,11 +105,52 @@ func NewCreateMetricHandlerFromJSON(service metricsService, logger *zap.Logger) 
 		}
 
 		writer.Header().Set("Content-Type", "application/json")
-		if err := json.NewEncoder(writer).Encode(metric); err != nil {
+		if err := json.NewEncoder(writer).Encode(metric[0]); err != nil {
 			logger.Error("Error during encode response", zap.Error(err))
 			http.Error(writer, err.Error(), http.StatusInternalServerError)
 		}
 		writer.WriteHeader(http.StatusOK)
+	}
+}
+
+func NewCreateListMetricsHandlerFromJSON(service metricsService, logger *zap.Logger) http.HandlerFunc {
+	return func(writer http.ResponseWriter, request *http.Request) {
+		if request.Method != http.MethodPost {
+			http.Error(writer, fmt.Sprintf("Method '%s' is not allowed", request.Method), http.StatusBadRequest)
+			return
+		}
+
+		var requestDtoList []common.MetricRequestDto
+		if err := json.NewDecoder(request.Body).Decode(&requestDtoList); err != nil {
+			logger.Error("Error decode request", zap.Error(err))
+			http.Error(writer, err.Error(), http.StatusBadRequest)
+			return
+		}
+		if err := request.Body.Close(); err != nil {
+			logger.Error("Error closing response body", zap.Error(err))
+			http.Error(writer, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		savedMetrics, err := service.SaveMetrics(request.Context(), requestDtoList)
+		if err != nil {
+			var validationError *server.ValidationError
+			if errors.As(err, &validationError) {
+				logger.Error("Validation was failed", zap.Error(err))
+				http.Error(writer, err.Error(), http.StatusBadRequest)
+			} else {
+				logger.Error("Internal server error", zap.Error(err))
+				http.Error(writer, err.Error(), http.StatusInternalServerError)
+			}
+			return
+		}
+
+		writer.Header().Set("Content-Type", "application/json")
+		writer.WriteHeader(http.StatusOK)
+		if err := json.NewEncoder(writer).Encode(savedMetrics); err != nil {
+			logger.Error("Error during encode response", zap.Error(err))
+			http.Error(writer, err.Error(), http.StatusInternalServerError)
+		}
 	}
 }
 
@@ -125,7 +169,7 @@ func NewFindMetricValueHandler(service metricsService, logger *zap.Logger) http.
 			return
 		}
 
-		metric, err := service.FindOneMetric(metricName, metricType)
+		metric, err := service.FindOneMetric(request.Context(), metricName, metricType)
 		if err != nil {
 			var notFoundError *server.MetricNotFoundError
 			if errors.As(err, &notFoundError) {
@@ -183,7 +227,7 @@ func NewFindOneMetricHandler(service metricsService, logger *zap.Logger) http.Ha
 			return
 		}
 
-		metric, err := service.FindOneMetric(requestDto.ID, requestDto.MType)
+		metric, err := service.FindOneMetric(request.Context(), requestDto.ID, requestDto.MType)
 		if err != nil {
 			var notFoundError *server.MetricNotFoundError
 			if errors.As(err, &notFoundError) {
@@ -210,14 +254,14 @@ func NewFindOneMetricHandler(service metricsService, logger *zap.Logger) http.Ha
 	}
 }
 
-func NewFinAllMetricsHandler(service metricsService, logger *zap.Logger) http.HandlerFunc {
+func NewFindAllMetricsHandler(service metricsService, logger *zap.Logger) http.HandlerFunc {
 	return func(writer http.ResponseWriter, request *http.Request) {
 		if request.Method != http.MethodGet {
 			http.Error(writer, fmt.Sprintf("Method '%s' is not allowed", request.Method), http.StatusBadRequest)
 			return
 		}
 
-		bytes, err := json.Marshal(service.FindAllMetrics())
+		bytes, err := json.Marshal(service.FindAllMetrics(request.Context()))
 		if err != nil {
 			logger.Error("Error during marshal metric.", zap.Error(err))
 			http.Error(writer, "Internal server error", http.StatusInternalServerError)
@@ -227,6 +271,33 @@ func NewFinAllMetricsHandler(service metricsService, logger *zap.Logger) http.Ha
 		writer.Header().Set("Content-Type", "text/html")
 		if _, err = writer.Write(bytes); err != nil {
 			http.Error(writer, "Internal server error", http.StatusInternalServerError)
+			return
+		}
+		writer.WriteHeader(http.StatusOK)
+	}
+}
+
+func NewPingHandler(pool *pgxpool.Pool, logger *zap.Logger) http.HandlerFunc {
+	return func(writer http.ResponseWriter, request *http.Request) {
+		if request.Method != http.MethodGet {
+			http.Error(writer, fmt.Sprintf("Method '%s' is not allowed", request.Method), http.StatusBadRequest)
+			return
+		}
+
+		if pool == nil {
+			logger.Error("Connect with DB was not created")
+			http.Error(writer, "Connect with DB was not created", http.StatusInternalServerError)
+			return
+		}
+
+		ctx, cancelFunc := context.WithTimeout(request.Context(), 1*time.Second)
+		defer cancelFunc()
+
+		err := pool.Ping(ctx)
+
+		if err != nil {
+			logger.Error("Database is not available", zap.Error(err))
+			http.Error(writer, "Database is not available", http.StatusInternalServerError)
 			return
 		}
 		writer.WriteHeader(http.StatusOK)

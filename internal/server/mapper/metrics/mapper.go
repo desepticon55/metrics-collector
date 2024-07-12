@@ -18,34 +18,48 @@ func (mapper) MapRequestToDomainModel(dto common.MetricRequestDto) (server.Metri
 	validate := validator.New()
 	validate.RegisterStructValidation(server.MetricValidator, common.MetricRequestDto{})
 	if err := validate.Struct(dto); err != nil {
-		return server.Metric{}, server.NewValidationError(err)
+		return nil, server.NewValidationError(err)
 	}
 
 	switch dto.MType {
 	case common.Gauge:
-		return server.Metric{Name: dto.ID, Type: common.Gauge, Value: *dto.Value, ValueType: "float64"}, nil
+		if dto.Value == nil {
+			return nil, fmt.Errorf("value is required for gauge type")
+		}
+		return &server.Gauge{
+			BaseMetric: server.BaseMetric{Name: dto.ID, Type: common.Gauge},
+			Value:      *dto.Value,
+		}, nil
 	case common.Counter:
-		return server.Metric{Name: dto.ID, Type: common.Counter, Value: *dto.Delta, ValueType: "int64"}, nil
+		if dto.Delta == nil {
+			return nil, fmt.Errorf("delta is required for counter type")
+		}
+		return &server.Counter{
+			BaseMetric: server.BaseMetric{Name: dto.ID, Type: common.Counter},
+			Value:      *dto.Delta,
+		}, nil
 	default:
-		return server.Metric{}, fmt.Errorf("unsupported metric type: %s", dto.MType)
+		return nil, fmt.Errorf("unsupported metric type: %s", dto.MType)
 	}
 }
 
 func (mapper) MapDomainModelToResponse(domainModel server.Metric) common.MetricResponseDto {
-	if domainModel.Type == common.Gauge {
-		value := domainModel.Value.(float64)
+	switch m := domainModel.(type) {
+	case *server.Gauge:
 		return common.MetricResponseDto{
-			ID:    domainModel.Name,
-			MType: domainModel.Type,
-			Value: &value,
+			ID:    m.GetName(),
+			MType: m.GetType(),
+			Value: &m.Value,
 			Delta: nil,
 		}
-	}
-	delta := domainModel.Value.(int64)
-	return common.MetricResponseDto{
-		ID:    domainModel.Name,
-		MType: domainModel.Type,
-		Value: nil,
-		Delta: &delta,
+	case *server.Counter:
+		return common.MetricResponseDto{
+			ID:    m.GetName(),
+			MType: m.GetType(),
+			Value: nil,
+			Delta: &m.Value,
+		}
+	default:
+		return common.MetricResponseDto{}
 	}
 }

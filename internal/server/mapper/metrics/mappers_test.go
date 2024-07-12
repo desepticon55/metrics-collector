@@ -23,11 +23,9 @@ func TestMapRequestToDomainModel(t *testing.T) {
 				MType: "gauge",
 				Value: newFloat64(123.45),
 			},
-			expected: server.Metric{
-				Name:      "test_gauge",
-				Type:      common.Gauge,
-				Value:     123.45,
-				ValueType: "float64",
+			expected: &server.Gauge{
+				BaseMetric: server.BaseMetric{Name: "test_gauge", Type: common.Gauge},
+				Value:      123.45,
 			},
 			expectErr: false,
 		},
@@ -38,11 +36,9 @@ func TestMapRequestToDomainModel(t *testing.T) {
 				MType: "counter",
 				Delta: newInt64(100),
 			},
-			expected: server.Metric{
-				Name:      "test_counter",
-				Type:      common.Counter,
-				Value:     int64(100),
-				ValueType: "int64",
+			expected: &server.Counter{
+				BaseMetric: server.BaseMetric{Name: "test_counter", Type: common.Counter},
+				Value:      100,
 			},
 			expectErr: false,
 		},
@@ -52,7 +48,7 @@ func TestMapRequestToDomainModel(t *testing.T) {
 				ID:    "test_unknown",
 				MType: "unknown",
 			},
-			expected:  server.Metric{},
+			expected:  nil,
 			expectErr: true,
 		},
 		{
@@ -61,7 +57,7 @@ func TestMapRequestToDomainModel(t *testing.T) {
 				ID:    "test_invalid_gauge",
 				MType: "gauge",
 			},
-			expected:  server.Metric{},
+			expected:  nil,
 			expectErr: true,
 		},
 		{
@@ -70,7 +66,7 @@ func TestMapRequestToDomainModel(t *testing.T) {
 				ID:    "test_invalid_counter",
 				MType: "counter",
 			},
-			expected:  server.Metric{},
+			expected:  nil,
 			expectErr: true,
 		},
 	}
@@ -98,11 +94,9 @@ func TestMapDomainModelToResponse(t *testing.T) {
 	}{
 		{
 			name: "Gauge metric",
-			domain: server.Metric{
-				Name:      "test_gauge",
-				Type:      common.Gauge,
-				Value:     123.45,
-				ValueType: "float64",
+			domain: &server.Gauge{
+				BaseMetric: server.BaseMetric{Name: "test_gauge", Type: common.Gauge},
+				Value:      123.45,
 			},
 			expected: common.MetricResponseDto{
 				ID:    "test_gauge",
@@ -113,11 +107,9 @@ func TestMapDomainModelToResponse(t *testing.T) {
 		},
 		{
 			name: "Counter metric",
-			domain: server.Metric{
-				Name:      "test_counter",
-				Type:      common.Counter,
-				Value:     int64(100),
-				ValueType: "int64",
+			domain: &server.Counter{
+				BaseMetric: server.BaseMetric{Name: "test_counter", Type: common.Counter},
+				Value:      100,
 			},
 			expected: common.MetricResponseDto{
 				ID:    "test_counter",

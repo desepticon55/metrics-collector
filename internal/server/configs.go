@@ -2,15 +2,22 @@ package server
 
 import (
 	"flag"
+	"fmt"
 	"os"
 	"strconv"
 )
 
 type Config struct {
-	ServerAddress   string
-	FileStoragePath string
-	StoreInterval   int
-	Restore         bool
+	ServerAddress      string
+	FileStoragePath    string
+	StoreInterval      int
+	Restore            bool
+	DatabaseConnString string
+}
+
+func (c Config) String() string {
+	return fmt.Sprintf("\nServerAddress: %s\nDatabaseConnString: %s\nStoreInterval: %d\nFileStoragePath: %s\nRestore: %t",
+		c.ServerAddress, c.DatabaseConnString, c.StoreInterval, c.FileStoragePath, c.Restore)
 }
 
 func ParseConfig() Config {
@@ -20,13 +27,13 @@ func ParseConfig() Config {
 	}
 	address := flag.String("a", defaultAddress, "Server address")
 
-	defaultFileStoragePath := "/tmp/metrics-db.json"
+	defaultFileStoragePath := "C:\\opt\\metrics-db.json"
 	if envFileStoragePath, exists := os.LookupEnv("FILE_STORAGE_PATH"); exists {
 		defaultFileStoragePath = envFileStoragePath
 	}
 	fileStoragePath := flag.String("f", defaultFileStoragePath, "File storage path")
 
-	defaultStoreInterval := 300
+	defaultStoreInterval := 5
 	if envStoreInterval, exists := os.LookupEnv("STORE_INTERVAL"); exists {
 		if parsedStoreInterval, err := strconv.Atoi(envStoreInterval); err == nil {
 			defaultStoreInterval = parsedStoreInterval
@@ -42,11 +49,18 @@ func ParseConfig() Config {
 	}
 	restore := flag.Bool("r", defaultRestore, "Load data from file or not")
 
+	defaultDatabaseConnString := "postgres://postgres:postgres@localhost:5432/postgres"
+	if envDatabaseConnString, exists := os.LookupEnv("DATABASE_DSN"); exists {
+		defaultDatabaseConnString = envDatabaseConnString
+	}
+	databaseConnString := flag.String("d", defaultDatabaseConnString, "Server address")
+
 	flag.Parse()
 	return Config{
-		ServerAddress:   *address,
-		StoreInterval:   *storeInterval,
-		FileStoragePath: *fileStoragePath,
-		Restore:         *restore,
+		ServerAddress:      *address,
+		StoreInterval:      *storeInterval,
+		FileStoragePath:    *fileStoragePath,
+		Restore:            *restore,
+		DatabaseConnString: *databaseConnString,
 	}
 }
