@@ -1,7 +1,10 @@
 package metrics
 
 import (
+	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -10,6 +13,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v4/pgxpool"
 	"go.uber.org/zap"
+	"io"
 	"net/http"
 	"strconv"
 	"strings"
@@ -113,22 +117,43 @@ func NewCreateMetricHandlerFromJSON(service metricsService, logger *zap.Logger) 
 	}
 }
 
-func NewCreateListMetricsHandlerFromJSON(service metricsService, logger *zap.Logger) http.HandlerFunc {
+func NewCreateListMetricsHandlerFromJSON(config server.Config, service metricsService, logger *zap.Logger) http.HandlerFunc {
 	return func(writer http.ResponseWriter, request *http.Request) {
 		if request.Method != http.MethodPost {
 			http.Error(writer, fmt.Sprintf("Method '%s' is not allowed", request.Method), http.StatusBadRequest)
 			return
 		}
 
+		if config.HashKey != "" {
+			var requestBodyBytes bytes.Buffer
+			_, err := io.Copy(&requestBodyBytes, request.Body)
+			if err != nil {
+				logger.Error("Error reading request body", zap.Error(err))
+				http.Error(writer, err.Error(), http.StatusInternalServerError)
+				return
+			}
+
+			requestBody := requestBodyBytes.Bytes()
+			hash := sha256.Sum256(append(requestBody, []byte(config.HashKey)...))
+			hashStr := hex.EncodeToString(hash[:])
+			hashSHA256 := request.Header.Get("HashSHA256")
+			if hashSHA256 == "" {
+				http.Error(writer, "HashSHA256 header is missing", http.StatusBadRequest)
+				return
+			}
+
+			if hashSHA256 != hashStr {
+				logger.Error("Invalid HashSHA256", zap.String("header hash", hashSHA256), zap.String("calculated hash", hashStr))
+				http.Error(writer, "Invalid HashSHA256", http.StatusBadRequest)
+				return
+			}
+			request.Body = io.NopCloser(bytes.NewReader(requestBody))
+		}
+
 		var requestDtoList []common.MetricRequestDto
 		if err := json.NewDecoder(request.Body).Decode(&requestDtoList); err != nil {
-			logger.Error("Error decode request", zap.Error(err))
+			logger.Error("Error decoding request", zap.Error(err))
 			http.Error(writer, err.Error(), http.StatusBadRequest)
-			return
-		}
-		if err := request.Body.Close(); err != nil {
-			logger.Error("Error closing response body", zap.Error(err))
-			http.Error(writer, err.Error(), http.StatusInternalServerError)
 			return
 		}
 

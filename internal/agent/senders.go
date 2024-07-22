@@ -3,6 +3,8 @@ package agent
 import (
 	"bytes"
 	"compress/gzip"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"github.com/desepticon55/metrics-collector/internal/common"
@@ -18,6 +20,11 @@ type MetricsSender interface {
 }
 
 type HTTPMetricsSender struct {
+	config Config
+}
+
+func New(config Config) MetricsSender {
+	return HTTPMetricsSender{config: config}
 }
 
 func (s HTTPMetricsSender) SendMetrics(destination string, metrics []common.MetricRequestDto) error {
@@ -37,6 +44,12 @@ func (s HTTPMetricsSender) SendMetrics(destination string, metrics []common.Metr
 	if err != nil {
 		log.Printf("Error during JSON marshaling: %v", err)
 		return err
+	}
+
+	if s.config.HashKey != "" {
+		hash := sha256.Sum256(append(requestBody, []byte(s.config.HashKey)...))
+		hashStr := hex.EncodeToString(hash[:])
+		headers.Add("HashSHA256", hashStr)
 	}
 
 	var compressedRequest bytes.Buffer

@@ -20,9 +20,7 @@ func main() {
 	var metrics []common.MetricRequestDto
 	config := agent.GetConfig()
 
-	fmt.Println("Address:", config.ServerAddress)
-	fmt.Println("Report interval:", config.ReportInterval)
-	fmt.Println("Poll interval:", config.PollInterval)
+	fmt.Println("Config:", config)
 
 	provider := &agent.RuntimeMetricProvider{}
 	go func() {
@@ -34,7 +32,8 @@ func main() {
 		}
 	}()
 
-	sender := agent.HTTPMetricsSender{}
+	sender := agent.New(config)
+
 	for range time.Tick(time.Duration(config.ReportInterval) * time.Second) {
 		mu.Lock()
 		err := sender.SendMetrics(config.ServerAddress, metrics)

@@ -64,7 +64,7 @@ func main() {
 	router.Method(http.MethodPost, "/value/", metricsApi.NewFindOneMetricHandler(metricsService, logger))
 	router.Method(http.MethodPost, "/update/{type}/{name}/{value}", metricsApi.NewCreateMetricHandler(metricsService, logger))
 	router.Method(http.MethodPost, "/update/", metricsApi.NewCreateMetricHandlerFromJSON(metricsService, logger))
-	router.Method(http.MethodPost, "/updates/", metricsApi.NewCreateListMetricsHandlerFromJSON(metricsService, logger))
+	router.Method(http.MethodPost, "/updates/", metricsApi.NewCreateListMetricsHandlerFromJSON(config, metricsService, logger))
 
 	http.ListenAndServe(config.ServerAddress, router)
 }
