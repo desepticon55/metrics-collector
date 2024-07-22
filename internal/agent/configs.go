@@ -42,7 +42,7 @@ func GetConfig() Config {
 	}
 	reportInterval := flag.Int("r", defaultReportInterval, "Report interval (sec.)")
 
-	defaultHashKey := "key"
+	defaultHashKey := ""
 	if hashKey, exists := os.LookupEnv("KEY"); exists {
 		defaultHashKey = hashKey
 	}

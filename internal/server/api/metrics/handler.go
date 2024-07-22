@@ -170,10 +170,17 @@ func NewCreateListMetricsHandlerFromJSON(config server.Config, service metricsSe
 			return
 		}
 
+		response, err := json.Marshal(savedMetrics)
+		if config.HashKey != "" {
+			hash := sha256.Sum256(append(response, []byte(config.HashKey)...))
+			hashStr := hex.EncodeToString(hash[:])
+			writer.Header().Set("HashSHA256", hashStr)
+		}
+
 		writer.Header().Set("Content-Type", "application/json")
 		writer.WriteHeader(http.StatusOK)
-		if err := json.NewEncoder(writer).Encode(savedMetrics); err != nil {
-			logger.Error("Error during encode response", zap.Error(err))
+		if _, err := writer.Write(response); err != nil {
+			logger.Error("Error during write response", zap.Error(err))
 			http.Error(writer, err.Error(), http.StatusInternalServerError)
 		}
 	}

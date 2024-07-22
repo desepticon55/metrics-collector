@@ -56,7 +56,7 @@ func ParseConfig() Config {
 	}
 	databaseConnString := flag.String("d", defaultDatabaseConnString, "Server address")
 
-	defaultHashKey := "key"
+	defaultHashKey := ""
 	if hashKey, exists := os.LookupEnv("KEY"); exists {
 		defaultHashKey = hashKey
 	}
