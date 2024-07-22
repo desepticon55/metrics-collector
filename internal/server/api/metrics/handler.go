@@ -77,12 +77,39 @@ func NewCreateMetricHandler(service metricsService, logger *zap.Logger) http.Han
 	}
 }
 
-func NewCreateMetricHandlerFromJSON(service metricsService, logger *zap.Logger) http.HandlerFunc {
+func NewCreateMetricHandlerFromJSON(config server.Config, service metricsService, logger *zap.Logger) http.HandlerFunc {
 	return func(writer http.ResponseWriter, request *http.Request) {
 		if request.Method != http.MethodPost {
 			http.Error(writer, fmt.Sprintf("Method '%s' is not allowed", request.Method), http.StatusBadRequest)
 			return
 		}
+
+		if config.HashKey != "" {
+			var requestBodyBytes bytes.Buffer
+			_, err := io.Copy(&requestBodyBytes, request.Body)
+			if err != nil {
+				logger.Error("Error reading request body", zap.Error(err))
+				http.Error(writer, err.Error(), http.StatusInternalServerError)
+				return
+			}
+
+			requestBody := requestBodyBytes.Bytes()
+			hash := sha256.Sum256(append(requestBody, []byte(config.HashKey)...))
+			hashStr := hex.EncodeToString(hash[:])
+			hashSHA256 := request.Header.Get("HashSHA256")
+			if hashSHA256 == "" {
+				http.Error(writer, "HashSHA256 header is missing", http.StatusBadRequest)
+				return
+			}
+
+			if hashSHA256 != hashStr {
+				logger.Error("Invalid HashSHA256", zap.String("header hash", hashSHA256), zap.String("calculated hash", hashStr))
+				http.Error(writer, "Invalid HashSHA256", http.StatusBadRequest)
+				return
+			}
+			request.Body = io.NopCloser(bytes.NewReader(requestBody))
+		}
+
 		var requestDto common.MetricRequestDto
 
 		if err := json.NewDecoder(request.Body).Decode(&requestDto); err != nil {
@@ -108,9 +135,17 @@ func NewCreateMetricHandlerFromJSON(service metricsService, logger *zap.Logger) 
 			return
 		}
 
+		response, err := json.Marshal(metric[0])
+		if config.HashKey != "" {
+			hash := sha256.Sum256(append(response, []byte(config.HashKey)...))
+			hashStr := hex.EncodeToString(hash[:])
+			writer.Header().Set("HashSHA256", hashStr)
+		}
+
 		writer.Header().Set("Content-Type", "application/json")
-		if err := json.NewEncoder(writer).Encode(metric[0]); err != nil {
-			logger.Error("Error during encode response", zap.Error(err))
+		writer.WriteHeader(http.StatusOK)
+		if _, err := writer.Write(response); err != nil {
+			logger.Error("Error during write response", zap.Error(err))
 			http.Error(writer, err.Error(), http.StatusInternalServerError)
 		}
 		writer.WriteHeader(http.StatusOK)
