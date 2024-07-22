@@ -13,11 +13,12 @@ type Config struct {
 	StoreInterval      int
 	Restore            bool
 	DatabaseConnString string
+	HashKey            string
 }
 
 func (c Config) String() string {
-	return fmt.Sprintf("\nServerAddress: %s\nDatabaseConnString: %s\nStoreInterval: %d\nFileStoragePath: %s\nRestore: %t",
-		c.ServerAddress, c.DatabaseConnString, c.StoreInterval, c.FileStoragePath, c.Restore)
+	return fmt.Sprintf("\nServerAddress: %s\nDatabaseConnString: %s\nStoreInterval: %d\nFileStoragePath: %s\nHashKey: %s\nRestore: %t",
+		c.ServerAddress, c.DatabaseConnString, c.StoreInterval, c.FileStoragePath, c.HashKey, c.Restore)
 }
 
 func ParseConfig() Config {
@@ -55,6 +56,12 @@ func ParseConfig() Config {
 	}
 	databaseConnString := flag.String("d", defaultDatabaseConnString, "Server address")
 
+	defaultHashKey := ""
+	if hashKey, exists := os.LookupEnv("KEY"); exists {
+		defaultHashKey = hashKey
+	}
+	hashKey := flag.String("k", defaultHashKey, "Hash key")
+
 	flag.Parse()
 	return Config{
 		ServerAddress:      *address,
@@ -62,5 +69,6 @@ func ParseConfig() Config {
 		FileStoragePath:    *fileStoragePath,
 		Restore:            *restore,
 		DatabaseConnString: *databaseConnString,
+		HashKey:            *hashKey,
 	}
 }
