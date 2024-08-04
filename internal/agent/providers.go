@@ -1,7 +1,10 @@
 package agent
 
 import (
+	"fmt"
 	"github.com/desepticon55/metrics-collector/internal/common"
+	"github.com/shirou/gopsutil/cpu"
+	"github.com/shirou/gopsutil/mem"
 	"math/rand/v2"
 	"runtime"
 	"sync/atomic"
@@ -51,6 +54,26 @@ func (p *RuntimeMetricProvider) GetMetrics() []common.MetricRequestDto {
 		makeGaugeMetricRequest("PauseTotalNs", float64(memStats.PauseTotalNs)),
 		makeGaugeMetricRequest("TotalAlloc", float64(memStats.TotalAlloc)),
 		makeCounterMetricRequest("PollCount", p.pollCount),
+	}
+
+	return metrics
+}
+
+type VirtualMetricProvider struct {
+	pollCount int64
+}
+
+func (p *VirtualMetricProvider) GetMetrics() []common.MetricRequestDto {
+	v, _ := mem.VirtualMemory()
+	cpuPercents, _ := cpu.Percent(0, true)
+
+	metrics := []common.MetricRequestDto{
+		makeGaugeMetricRequest("TotalMemory", float64(v.Total)),
+		makeGaugeMetricRequest("FreeMemory", float64(v.Free)),
+	}
+
+	for i, percent := range cpuPercents {
+		metrics = append(metrics, makeGaugeMetricRequest(fmt.Sprintf("CPUutilization%d", i+1), percent))
 	}
 
 	return metrics

@@ -47,7 +47,7 @@ func main() {
 		metricsService = metricsServices.New(storage, mapper, server.NewRetrier(3, 1*time.Second, 5*time.Second))
 	}
 
-	fmt.Println("Config:", config)
+	logger.Info("Current config:", zap.String("config", config.String()))
 
 	router := chi.NewRouter()
 	router.Use(middleware.Recoverer)

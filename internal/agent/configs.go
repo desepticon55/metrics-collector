@@ -12,6 +12,7 @@ type Config struct {
 	PollInterval   int
 	ReportInterval int
 	HashKey        string
+	RateLimit      int
 }
 
 func (c Config) String() string {
@@ -48,11 +49,20 @@ func GetConfig() Config {
 	}
 	hashKey := flag.String("k", defaultHashKey, "Hash key")
 
+	defaultRateLimit := 1
+	if rateLimit, exists := os.LookupEnv("RATE_LIMIT"); exists {
+		if parsedRateLimit, err := strconv.Atoi(rateLimit); err == nil {
+			defaultRateLimit = parsedRateLimit
+		}
+	}
+	rateLimit := flag.Int("l", defaultRateLimit, "Rate limit")
+
 	flag.Parse()
 	return Config{
 		ServerAddress:  *address,
 		PollInterval:   *pollInterval,
 		ReportInterval: *reportInterval,
 		HashKey:        *hashKey,
+		RateLimit:      *rateLimit,
 	}
 }
