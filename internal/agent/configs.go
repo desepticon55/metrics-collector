@@ -2,6 +2,7 @@ package agent
 
 import (
 	"flag"
+	"fmt"
 	"os"
 	"strconv"
 )
@@ -10,6 +11,13 @@ type Config struct {
 	ServerAddress  string
 	PollInterval   int
 	ReportInterval int
+	HashKey        string
+	RateLimit      int
+}
+
+func (c Config) String() string {
+	return fmt.Sprintf("\nServerAddress: %s\nPollInterval: %d\nReportInterval: %d\nHashKey: %s\n",
+		c.ServerAddress, c.PollInterval, c.ReportInterval, c.HashKey)
 }
 
 func GetConfig() Config {
@@ -34,10 +42,27 @@ func GetConfig() Config {
 		}
 	}
 	reportInterval := flag.Int("r", defaultReportInterval, "Report interval (sec.)")
+
+	defaultHashKey := ""
+	if hashKey, exists := os.LookupEnv("KEY"); exists {
+		defaultHashKey = hashKey
+	}
+	hashKey := flag.String("k", defaultHashKey, "Hash key")
+
+	defaultRateLimit := 1
+	if rateLimit, exists := os.LookupEnv("RATE_LIMIT"); exists {
+		if parsedRateLimit, err := strconv.Atoi(rateLimit); err == nil {
+			defaultRateLimit = parsedRateLimit
+		}
+	}
+	rateLimit := flag.Int("l", defaultRateLimit, "Rate limit")
+
 	flag.Parse()
 	return Config{
 		ServerAddress:  *address,
 		PollInterval:   *pollInterval,
 		ReportInterval: *reportInterval,
+		HashKey:        *hashKey,
+		RateLimit:      *rateLimit,
 	}
 }
