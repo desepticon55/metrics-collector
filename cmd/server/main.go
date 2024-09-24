@@ -14,12 +14,15 @@ import (
 	"github.com/desepticon55/metrics-collector/internal/server/storage/postgres"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
+	"github.com/go-playground/validator/v10"
 	"github.com/jackc/pgx/v4"
 	"github.com/jackc/pgx/v4/pgxpool"
 	"github.com/jackc/pgx/v4/stdlib"
 	"github.com/pressly/goose/v3"
 	"go.uber.org/zap"
+	"log"
 	"net/http"
+	_ "net/http/pprof"
 	"time"
 )
 
@@ -32,8 +35,9 @@ func main() {
 
 	config := server.ParseConfig()
 	flag.Parse()
+	v := initValidator()
+	mapper := initMapper(v)
 
-	mapper := metricsMappers.NewMapper()
 	var metricsService metricsServices.Service
 	pool, err := createConnectionPool(context.Background(), config.DatabaseConnString)
 	if err != nil {
@@ -66,7 +70,20 @@ func main() {
 	router.Method(http.MethodPost, "/update/", metricsApi.NewCreateMetricHandlerFromJSON(metricsService, logger))
 	router.Method(http.MethodPost, "/updates/", metricsApi.NewCreateListMetricsHandlerFromJSON(config, metricsService, logger))
 
+	go func() {
+		log.Println(http.ListenAndServe("localhost:6060", nil))
+	}()
 	http.ListenAndServe(config.ServerAddress, router)
+}
+
+func initValidator() *validator.Validate {
+	v := validator.New()
+	v.RegisterStructValidation(server.MetricValidator, common.MetricRequestDto{})
+	return v
+}
+
+func initMapper(v *validator.Validate) metricsMappers.Mapper {
+	return metricsMappers.NewMapper(v)
 }
 
 func createConnectionPool(ctx context.Context, connectionString string) (*pgxpool.Pool, error) {

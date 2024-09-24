@@ -3,12 +3,13 @@ package metrics
 import (
 	"github.com/desepticon55/metrics-collector/internal/common"
 	"github.com/desepticon55/metrics-collector/internal/server"
+	"github.com/go-playground/validator/v10"
 	"github.com/stretchr/testify/assert"
 	"testing"
 )
 
 func TestMapRequestToDomainModel(t *testing.T) {
-	mapper := NewMapper()
+	mapper := NewMapper(validator.New())
 
 	tests := []struct {
 		name      string
@@ -85,7 +86,7 @@ func TestMapRequestToDomainModel(t *testing.T) {
 }
 
 func TestMapDomainModelToResponse(t *testing.T) {
-	mapper := NewMapper()
+	mapper := NewMapper(validator.New())
 
 	tests := []struct {
 		name     string

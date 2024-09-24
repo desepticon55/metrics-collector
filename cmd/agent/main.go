@@ -2,18 +2,23 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"github.com/desepticon55/metrics-collector/internal/agent"
 	"github.com/desepticon55/metrics-collector/internal/common"
 	"go.uber.org/zap"
 	"golang.org/x/time/rate"
+	"log"
+	"net/http"
+	_ "net/http/pprof"
 	"sync"
 	"time"
 )
 
 func main() {
+	runPprofServer()
 	logger, err := common.NewLogger()
 	if err != nil {
-		panic(err)
+		log.Fatal("Error during initialise logger", err)
 	}
 	defer logger.Sync()
 
@@ -72,7 +77,7 @@ func main() {
 					logger.Error("Error during rate limit wait", zap.Error(err))
 					continue
 				}
-				err = sender.SendMetrics(config.ServerAddress, metrics)
+				err = sender.SendMetrics(fmt.Sprintf("http://%s/updates/", config.ServerAddress), metrics)
 				if err != nil {
 					logger.Error("Error during send metrics", zap.Error(err))
 				} else {
@@ -83,4 +88,11 @@ func main() {
 		}
 	}()
 	wg.Wait()
+
+}
+
+func runPprofServer() {
+	go func() {
+		log.Println(http.ListenAndServe("localhost:6070", nil))
+	}()
 }

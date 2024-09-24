@@ -7,17 +7,16 @@ import (
 	"github.com/go-playground/validator/v10"
 )
 
-type mapper struct {
+type Mapper struct {
+	v *validator.Validate
 }
 
-func NewMapper() mapper {
-	return mapper{}
+func NewMapper(v *validator.Validate) Mapper {
+	return Mapper{v: v}
 }
 
-func (mapper) MapRequestToDomainModel(dto common.MetricRequestDto) (server.Metric, error) {
-	validate := validator.New()
-	validate.RegisterStructValidation(server.MetricValidator, common.MetricRequestDto{})
-	if err := validate.Struct(dto); err != nil {
+func (m Mapper) MapRequestToDomainModel(dto common.MetricRequestDto) (server.Metric, error) {
+	if err := m.v.Struct(dto); err != nil {
 		return nil, server.NewValidationError(err)
 	}
 
@@ -43,7 +42,7 @@ func (mapper) MapRequestToDomainModel(dto common.MetricRequestDto) (server.Metri
 	}
 }
 
-func (mapper) MapDomainModelToResponse(domainModel server.Metric) common.MetricResponseDto {
+func (Mapper) MapDomainModelToResponse(domainModel server.Metric) common.MetricResponseDto {
 	switch m := domainModel.(type) {
 	case *server.Gauge:
 		return common.MetricResponseDto{

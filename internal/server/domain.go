@@ -7,6 +7,7 @@ import (
 	"strconv"
 )
 
+// Metric domain model
 type Metric interface {
 	GetName() string
 	GetType() common.MetricType

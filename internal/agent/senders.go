@@ -6,7 +6,6 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
-	"fmt"
 	"github.com/desepticon55/metrics-collector/internal/common"
 	"github.com/gojek/heimdall/v7"
 	"github.com/gojek/heimdall/v7/httpclient"
@@ -27,7 +26,7 @@ func New(config Config) MetricsSender {
 	return HTTPMetricsSender{config: config}
 }
 
-func (s HTTPMetricsSender) SendMetrics(destination string, metrics []common.MetricRequestDto) error {
+func (s HTTPMetricsSender) SendMetrics(url string, metrics []common.MetricRequestDto) error {
 	backoff := heimdall.NewExponentialBackoff(1*time.Second, 5*time.Second, 2, 0)
 	client := httpclient.NewClient(
 		httpclient.WithHTTPTimeout(1*time.Second),
@@ -35,7 +34,6 @@ func (s HTTPMetricsSender) SendMetrics(destination string, metrics []common.Metr
 		httpclient.WithRetryCount(3),
 	)
 
-	url := fmt.Sprintf("http://%s/updates/", destination)
 	headers := make(http.Header)
 	headers.Add("Content-Type", "application/json")
 	headers.Add("Content-Encoding", "gzip")
