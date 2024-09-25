@@ -20,6 +20,7 @@ import (
 	"time"
 )
 
+// Create mertic handler
 func NewCreateMetricHandler(service metricsService, logger *zap.Logger) http.HandlerFunc {
 	return func(writer http.ResponseWriter, request *http.Request) {
 		if request.Method != http.MethodPost {
@@ -77,6 +78,7 @@ func NewCreateMetricHandler(service metricsService, logger *zap.Logger) http.Han
 	}
 }
 
+// Create mertic from JSON body handler
 func NewCreateMetricHandlerFromJSON(service metricsService, logger *zap.Logger) http.HandlerFunc {
 	return func(writer http.ResponseWriter, request *http.Request) {
 		if request.Method != http.MethodPost {
@@ -117,6 +119,7 @@ func NewCreateMetricHandlerFromJSON(service metricsService, logger *zap.Logger) 
 	}
 }
 
+// Create list of mertics from JSON handler
 func NewCreateListMetricsHandlerFromJSON(config server.Config, service metricsService, logger *zap.Logger) http.HandlerFunc {
 	return func(writer http.ResponseWriter, request *http.Request) {
 		if request.Method != http.MethodPost {
@@ -191,6 +194,7 @@ func NewCreateListMetricsHandlerFromJSON(config server.Config, service metricsSe
 	}
 }
 
+// Find metric value handler
 func NewFindMetricValueHandler(service metricsService, logger *zap.Logger) http.HandlerFunc {
 	return func(writer http.ResponseWriter, request *http.Request) {
 		if request.Method != http.MethodGet {
@@ -240,6 +244,7 @@ func NewFindMetricValueHandler(service metricsService, logger *zap.Logger) http.
 	}
 }
 
+// Find one mertic handler
 func NewFindOneMetricHandler(service metricsService, logger *zap.Logger) http.HandlerFunc {
 	return func(writer http.ResponseWriter, request *http.Request) {
 		if request.Method != http.MethodPost {
@@ -291,6 +296,7 @@ func NewFindOneMetricHandler(service metricsService, logger *zap.Logger) http.Ha
 	}
 }
 
+// Find all metrics handler
 func NewFindAllMetricsHandler(service metricsService, logger *zap.Logger) http.HandlerFunc {
 	return func(writer http.ResponseWriter, request *http.Request) {
 		if request.Method != http.MethodGet {

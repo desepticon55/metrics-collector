@@ -7,6 +7,7 @@ import (
 	"strconv"
 )
 
+// Agent configuration
 type Config struct {
 	ServerAddress  string
 	PollInterval   int

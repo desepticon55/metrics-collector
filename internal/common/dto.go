@@ -8,8 +8,8 @@ const (
 )
 
 type MetricRequestDto struct {
-	ID    string     `json:"id" validate:"required"`
-	MType MetricType `json:"type" validate:"required"`
+	ID    string     `json:"id"`
+	MType MetricType `json:"type"`
 	Delta *int64     `json:"delta,omitempty"`
 	Value *float64   `json:"value,omitempty"`
 }
