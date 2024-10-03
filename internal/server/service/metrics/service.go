@@ -30,12 +30,12 @@ func (s Service) SaveMetrics(ctx context.Context, requests []common.MetricReques
 	}
 
 	err := s.retrier.RunSQL(func() error {
-		metrics, err := s.storage.SaveMetrics(ctx, metrics)
+		m, err := s.storage.SaveMetrics(ctx, metrics)
 		if err != nil {
 			return err
 		}
 
-		for _, metric := range metrics {
+		for _, metric := range m {
 			savedMetrics = append(savedMetrics, s.mapper.MapDomainModelToResponse(metric))
 		}
 		return nil

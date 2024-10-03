@@ -31,3 +31,12 @@ jobs:
       - name: Run statictest
         run: |
           go vet -vettool=$(which statictest) ./...
+
+      - name: Build multichecker binary
+        run: |
+          cd cmd/multichecker
+          go build -buildvcs=false -o custommultichecker
+
+#      - name: Run multichecker
+#        run: |
+#          cmd/multichecker/custommultichecker ./...
