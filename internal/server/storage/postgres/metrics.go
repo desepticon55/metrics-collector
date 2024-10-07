@@ -114,10 +114,10 @@ func (s *Storage) saveMetricsWithTx(ctx context.Context, metrics []server.Metric
 	}
 
 	for _, metric := range metrics {
-		savedMetric, err := s.saveMetricWithTx(ctx, tx, metric)
-		if err != nil {
+		savedMetric, e := s.saveMetricWithTx(ctx, tx, metric)
+		if e != nil {
 			rollbackErr := tx.Rollback(ctx)
-			return nil, errors.Join(err, rollbackErr)
+			return nil, errors.Join(e, rollbackErr)
 		}
 		savedMetrics = append(savedMetrics, savedMetric)
 	}
