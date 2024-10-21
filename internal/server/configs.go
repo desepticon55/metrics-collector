@@ -14,11 +14,13 @@ type Config struct {
 	Restore            bool
 	DatabaseConnString string
 	HashKey            string
+	EnabledHTTPS       bool
+	CryptoKey          string
 }
 
 func (c Config) String() string {
-	return fmt.Sprintf("\nServerAddress: %s\nDatabaseConnString: %s\nStoreInterval: %d\nFileStoragePath: %s\nHashKey: %s\nRestore: %t",
-		c.ServerAddress, c.DatabaseConnString, c.StoreInterval, c.FileStoragePath, c.HashKey, c.Restore)
+	return fmt.Sprintf("\nServerAddress: %s\nDatabaseConnString: %s\nStoreInterval: %d\nFileStoragePath: %s\nHashKey: %s\nRestore: %t\nEnabledHttps: %t\nCryptoKey: %s",
+		c.ServerAddress, c.DatabaseConnString, c.StoreInterval, c.FileStoragePath, c.HashKey, c.Restore, c.EnabledHTTPS, c.CryptoKey)
 }
 
 func ParseConfig() Config {
@@ -50,6 +52,14 @@ func ParseConfig() Config {
 	}
 	restore := flag.Bool("r", defaultRestore, "Load data from file or not")
 
+	defaultEnableHTTPS := false
+	if envEnableHTTPS, exists := os.LookupEnv("ENABLE_HTTPS"); exists {
+		if parsedEnableHTTPS, err := strconv.ParseBool(envEnableHTTPS); err == nil {
+			defaultEnableHTTPS = parsedEnableHTTPS
+		}
+	}
+	enableHTTPS := flag.Bool("s", defaultEnableHTTPS, "Enable HTTPS or not")
+
 	defaultDatabaseConnString := "postgres://postgres:postgres@localhost:5432/postgres"
 	if envDatabaseConnString, exists := os.LookupEnv("DATABASE_DSN"); exists {
 		defaultDatabaseConnString = envDatabaseConnString
@@ -62,6 +72,12 @@ func ParseConfig() Config {
 	}
 	hashKey := flag.String("k", defaultHashKey, "Hash key")
 
+	defaultCryptoKey := ""
+	if envCryptoKey, exists := os.LookupEnv("CRYPTO_KEY"); exists {
+		defaultCryptoKey = envCryptoKey
+	}
+	cryptoKey := flag.String("crypto-key", defaultCryptoKey, "Crypto key")
+
 	flag.Parse()
 	return Config{
 		ServerAddress:      *address,
@@ -70,5 +86,7 @@ func ParseConfig() Config {
 		Restore:            *restore,
 		DatabaseConnString: *databaseConnString,
 		HashKey:            *hashKey,
+		EnabledHTTPS:       *enableHTTPS,
+		CryptoKey:          *cryptoKey,
 	}
 }

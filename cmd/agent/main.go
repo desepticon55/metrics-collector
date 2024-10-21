@@ -87,7 +87,11 @@ func main() {
 					logger.Error("Error during rate limit wait", zap.Error(err))
 					continue
 				}
-				err = sender.SendMetrics(fmt.Sprintf("http://%s/updates/", config.ServerAddress), metrics)
+				if config.EnabledHTTPS {
+					err = sender.SendMetrics(fmt.Sprintf("https://%s/updates/", config.ServerAddress), metrics)
+				} else {
+					err = sender.SendMetrics(fmt.Sprintf("http://%s/updates/", config.ServerAddress), metrics)
+				}
 				if err != nil {
 					logger.Error("Error during send metrics", zap.Error(err))
 				} else {

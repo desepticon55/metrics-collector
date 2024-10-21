@@ -14,6 +14,8 @@ type Config struct {
 	ReportInterval int
 	HashKey        string
 	RateLimit      int
+	EnabledHTTPS   bool
+	CryptoKey      string
 }
 
 func (c Config) String() string {
@@ -58,6 +60,20 @@ func GetConfig() Config {
 	}
 	rateLimit := flag.Int("l", defaultRateLimit, "Rate limit")
 
+	defaultEnableHTTPS := false
+	if envEnableHTTPS, exists := os.LookupEnv("ENABLE_HTTPS"); exists {
+		if parsedEnableHTTPS, err := strconv.ParseBool(envEnableHTTPS); err == nil {
+			defaultEnableHTTPS = parsedEnableHTTPS
+		}
+	}
+	enableHTTPS := flag.Bool("s", defaultEnableHTTPS, "Enable HTTPS or not")
+
+	defaultCryptoKey := ""
+	if envCryptoKey, exists := os.LookupEnv("CRYPTO_KEY"); exists {
+		defaultCryptoKey = envCryptoKey
+	}
+	cryptoKey := flag.String("crypto-key", defaultCryptoKey, "Crypto key")
+
 	flag.Parse()
 	return Config{
 		ServerAddress:  *address,
@@ -65,5 +81,7 @@ func GetConfig() Config {
 		ReportInterval: *reportInterval,
 		HashKey:        *hashKey,
 		RateLimit:      *rateLimit,
+		EnabledHTTPS:   *enableHTTPS,
+		CryptoKey:      *cryptoKey,
 	}
 }

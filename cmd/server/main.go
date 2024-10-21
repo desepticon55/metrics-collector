@@ -80,10 +80,14 @@ func main() {
 	router.Method(http.MethodPost, "/update/", metricsApi.NewCreateMetricHandlerFromJSON(metricsService, logger))
 	router.Method(http.MethodPost, "/updates/", metricsApi.NewCreateListMetricsHandlerFromJSON(config, metricsService, logger))
 
-	go func() {
-		log.Println(http.ListenAndServe("localhost:6060", nil))
-	}()
-	http.ListenAndServe(config.ServerAddress, router)
+	if config.EnabledHTTPS {
+		e := http.ListenAndServeTLS(config.ServerAddress, "./cmd/cert/server.crt", config.CryptoKey, router)
+		if e != nil {
+			logger.Error("Error during start server", zap.Error(e))
+		}
+	} else {
+		http.ListenAndServe(config.ServerAddress, router)
+	}
 }
 
 func initValidator() *validator.Validate {
