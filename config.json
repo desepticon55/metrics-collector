@@ -1,0 +1,4 @@
+{
+  "enabled_https": "false",
+  "crypto_key": "./cmd/cert/server.key"
+}

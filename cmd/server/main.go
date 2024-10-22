@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"github.com/desepticon55/metrics-collector/internal/common"
@@ -23,6 +24,7 @@ import (
 	"log"
 	"net/http"
 	_ "net/http/pprof"
+	"os"
 	"time"
 )
 
@@ -43,7 +45,7 @@ func main() {
 	}
 	defer logger.Sync()
 
-	config := server.ParseConfig()
+	config := extractConfig()
 	flag.Parse()
 	v := initValidator()
 	mapper := initMapper(v)
@@ -90,6 +92,23 @@ func main() {
 	}
 }
 
+func extractConfig() server.Config {
+	return server.ParseConfig(func(filePath string) (server.Config, error) {
+		var config server.Config
+		fileContent, err := os.ReadFile(filePath)
+		if err != nil {
+			return config, fmt.Errorf("could not read config file: %w", err)
+		}
+
+		err = json.Unmarshal(fileContent, &config)
+		if err != nil {
+			return config, fmt.Errorf("could not unmarshal config JSON: %w", err)
+		}
+
+		return config, nil
+	})
+}
+
 func initValidator() *validator.Validate {
 	v := validator.New()
 	v.RegisterStructValidation(server.MetricValidator, common.MetricRequestDto{})
@@ -127,4 +146,19 @@ func runMigrations(connectionString string, logger *zap.Logger) {
 	if err := goose.Up(db, "migrations"); err != nil {
 		logger.Error("Error during run database migrations", zap.Error(err))
 	}
+}
+
+func loadConfigFromFile(path string) (server.Config, error) {
+	var config server.Config
+	fileContent, err := os.ReadFile(path)
+	if err != nil {
+		return config, fmt.Errorf("could not read config file: %w", err)
+	}
+
+	err = json.Unmarshal(fileContent, &config)
+	if err != nil {
+		return config, fmt.Errorf("could not unmarshal config JSON: %w", err)
+	}
+
+	return config, nil
 }
