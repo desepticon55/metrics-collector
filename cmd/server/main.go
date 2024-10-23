@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"github.com/desepticon55/metrics-collector/internal/common"
@@ -23,6 +24,7 @@ import (
 	"log"
 	"net/http"
 	_ "net/http/pprof"
+	"os"
 	"time"
 )
 
@@ -43,7 +45,7 @@ func main() {
 	}
 	defer logger.Sync()
 
-	config := server.ParseConfig()
+	config := extractConfig()
 	flag.Parse()
 	v := initValidator()
 	mapper := initMapper(v)
@@ -80,10 +82,31 @@ func main() {
 	router.Method(http.MethodPost, "/update/", metricsApi.NewCreateMetricHandlerFromJSON(metricsService, logger))
 	router.Method(http.MethodPost, "/updates/", metricsApi.NewCreateListMetricsHandlerFromJSON(config, metricsService, logger))
 
-	go func() {
-		log.Println(http.ListenAndServe("localhost:6060", nil))
-	}()
-	http.ListenAndServe(config.ServerAddress, router)
+	if config.EnabledHTTPS {
+		e := http.ListenAndServeTLS(config.ServerAddress, "./cmd/cert/server.crt", config.CryptoKey, router)
+		if e != nil {
+			logger.Error("Error during start server", zap.Error(e))
+		}
+	} else {
+		http.ListenAndServe(config.ServerAddress, router)
+	}
+}
+
+func extractConfig() server.Config {
+	return server.ParseConfig(func(filePath string) (server.Config, error) {
+		var config server.Config
+		fileContent, err := os.ReadFile(filePath)
+		if err != nil {
+			return config, fmt.Errorf("could not read config file: %w", err)
+		}
+
+		err = json.Unmarshal(fileContent, &config)
+		if err != nil {
+			return config, fmt.Errorf("could not unmarshal config JSON: %w", err)
+		}
+
+		return config, nil
+	})
 }
 
 func initValidator() *validator.Validate {
@@ -123,4 +146,19 @@ func runMigrations(connectionString string, logger *zap.Logger) {
 	if err := goose.Up(db, "migrations"); err != nil {
 		logger.Error("Error during run database migrations", zap.Error(err))
 	}
+}
+
+func loadConfigFromFile(path string) (server.Config, error) {
+	var config server.Config
+	fileContent, err := os.ReadFile(path)
+	if err != nil {
+		return config, fmt.Errorf("could not read config file: %w", err)
+	}
+
+	err = json.Unmarshal(fileContent, &config)
+	if err != nil {
+		return config, fmt.Errorf("could not unmarshal config JSON: %w", err)
+	}
+
+	return config, nil
 }
