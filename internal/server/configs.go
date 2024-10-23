@@ -19,14 +19,12 @@ type Config struct {
 	CryptoKey          string `json:"crypto_key"`
 }
 
-type ConfigLoaderFunc func(filePath string) (Config, error)
-
 func (c Config) String() string {
 	return fmt.Sprintf("\nServerAddress: %s\nDatabaseConnString: %s\nStoreInterval: %d\nFileStoragePath: %s\nHashKey: %s\nRestore: %t\nEnabledHttps: %t\nCryptoKey: %s",
 		c.ServerAddress, c.DatabaseConnString, c.StoreInterval, c.FileStoragePath, c.HashKey, c.Restore, c.EnabledHTTPS, c.CryptoKey)
 }
 
-func ParseConfig(loadConfig ConfigLoaderFunc) Config {
+func ParseConfig(loadConfig func(filePath string) (Config, error)) Config {
 	defaultConfigPath := ""
 	if envConfigPath, exists := os.LookupEnv("CONFIG"); exists {
 		defaultConfigPath = envConfigPath
