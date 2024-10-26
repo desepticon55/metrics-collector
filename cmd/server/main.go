@@ -7,12 +7,14 @@ import (
 	"fmt"
 	"github.com/desepticon55/metrics-collector/internal/common"
 	"github.com/desepticon55/metrics-collector/internal/server"
-	metricsApi "github.com/desepticon55/metrics-collector/internal/server/api/metrics"
+	handler "github.com/desepticon55/metrics-collector/internal/server/api/metrics/grpc"
+	metricsApi "github.com/desepticon55/metrics-collector/internal/server/api/metrics/http"
 	customMiddleware "github.com/desepticon55/metrics-collector/internal/server/api/middleware"
 	metricsMappers "github.com/desepticon55/metrics-collector/internal/server/mapper/metrics"
 	metricsServices "github.com/desepticon55/metrics-collector/internal/server/service/metrics"
 	"github.com/desepticon55/metrics-collector/internal/server/storage/memory"
 	"github.com/desepticon55/metrics-collector/internal/server/storage/postgres"
+	"github.com/desepticon55/metrics-collector/proto/metrics"
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-playground/validator/v10"
@@ -21,7 +23,9 @@ import (
 	"github.com/jackc/pgx/v4/stdlib"
 	"github.com/pressly/goose/v3"
 	"go.uber.org/zap"
+	"google.golang.org/grpc"
 	"log"
+	"net"
 	"net/http"
 	_ "net/http/pprof"
 	"os"
@@ -50,6 +54,15 @@ func main() {
 	v := initValidator()
 	mapper := initMapper(v)
 
+	logger.Info("Current config:", zap.String("config", config.String()))
+	if config.EnabledGRPC {
+		runGRPCServer(config, mapper, logger)
+	} else {
+		runHTTPServer(config, mapper, logger)
+	}
+}
+
+func runHTTPServer(config server.Config, mapper metricsMappers.Mapper, logger *zap.Logger) {
 	var metricsService metricsServices.Service
 	pool, err := createConnectionPool(context.Background(), config.DatabaseConnString)
 	if err != nil {
@@ -62,8 +75,6 @@ func main() {
 		storage := postgres.New(pool, logger)
 		metricsService = metricsServices.New(storage, mapper, server.NewRetrier(3, 1*time.Second, 5*time.Second))
 	}
-
-	logger.Info("Current config:", zap.String("config", config.String()))
 
 	router := chi.NewRouter()
 	router.Use(middleware.Recoverer)
@@ -90,6 +101,29 @@ func main() {
 		}
 	} else {
 		http.ListenAndServe(config.ServerAddress, router)
+	}
+}
+
+func runGRPCServer(config server.Config, mapper metricsMappers.Mapper, logger *zap.Logger) {
+	lis, err := net.Listen("tcp", config.ServerAddress)
+	if err != nil {
+		logger.Fatal("Failed start GRPC server", zap.Error(err))
+	}
+
+	storage := memory.New(config.FileStoragePath, config.Restore, time.Duration(config.StoreInterval)*time.Second)
+	metricsService := metricsServices.New(storage, mapper, server.NewRetrier(3, 1*time.Second, 5*time.Second))
+
+	s := grpc.NewServer()
+	metricsServer := &handler.MetricsServer{
+		Service: metricsService,
+		Config:  config,
+		Logger:  logger,
+	}
+
+	metrics.RegisterMetricsServiceServer(s, metricsServer)
+	logger.Debug("gRPC server is running", zap.String("Server address", config.ServerAddress))
+	if err := s.Serve(lis); err != nil {
+		logger.Fatal("Failed to serve", zap.Error(err))
 	}
 }
 
@@ -147,19 +181,4 @@ func runMigrations(connectionString string, logger *zap.Logger) {
 	if err := goose.Up(db, "migrations"); err != nil {
 		logger.Error("Error during run database migrations", zap.Error(err))
 	}
-}
-
-func loadConfigFromFile(path string) (server.Config, error) {
-	var config server.Config
-	fileContent, err := os.ReadFile(path)
-	if err != nil {
-		return config, fmt.Errorf("could not read config file: %w", err)
-	}
-
-	err = json.Unmarshal(fileContent, &config)
-	if err != nil {
-		return config, fmt.Errorf("could not unmarshal config JSON: %w", err)
-	}
-
-	return config, nil
 }

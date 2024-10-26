@@ -1,4 +1,4 @@
-package metrics
+package http
 
 import (
 	"bytes"
@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"github.com/desepticon55/metrics-collector/internal/common"
 	"github.com/desepticon55/metrics-collector/internal/server"
+	"github.com/desepticon55/metrics-collector/internal/server/api/metrics"
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v4/pgxpool"
 	"go.uber.org/zap"
@@ -21,7 +22,7 @@ import (
 )
 
 // Create mertic handler
-func NewCreateMetricHandler(service metricsService, logger *zap.Logger) http.HandlerFunc {
+func NewCreateMetricHandler(service metrics.MetricsService, logger *zap.Logger) http.HandlerFunc {
 	return func(writer http.ResponseWriter, request *http.Request) {
 		if request.Method != http.MethodPost {
 			http.Error(writer, fmt.Sprintf("Method '%s' is not allowed", request.Method), http.StatusBadRequest)
@@ -79,7 +80,7 @@ func NewCreateMetricHandler(service metricsService, logger *zap.Logger) http.Han
 }
 
 // Create mertic from JSON body handler
-func NewCreateMetricHandlerFromJSON(service metricsService, logger *zap.Logger) http.HandlerFunc {
+func NewCreateMetricHandlerFromJSON(service metrics.MetricsService, logger *zap.Logger) http.HandlerFunc {
 	return func(writer http.ResponseWriter, request *http.Request) {
 		if request.Method != http.MethodPost {
 			http.Error(writer, fmt.Sprintf("Method '%s' is not allowed", request.Method), http.StatusBadRequest)
@@ -120,7 +121,7 @@ func NewCreateMetricHandlerFromJSON(service metricsService, logger *zap.Logger) 
 }
 
 // Create list of mertics from JSON handler
-func NewCreateListMetricsHandlerFromJSON(config server.Config, service metricsService, logger *zap.Logger) http.HandlerFunc {
+func NewCreateListMetricsHandlerFromJSON(config server.Config, service metrics.MetricsService, logger *zap.Logger) http.HandlerFunc {
 	return func(writer http.ResponseWriter, request *http.Request) {
 		if request.Method != http.MethodPost {
 			http.Error(writer, fmt.Sprintf("Method '%s' is not allowed", request.Method), http.StatusBadRequest)
@@ -195,7 +196,7 @@ func NewCreateListMetricsHandlerFromJSON(config server.Config, service metricsSe
 }
 
 // Find metric value handler
-func NewFindMetricValueHandler(service metricsService, logger *zap.Logger) http.HandlerFunc {
+func NewFindMetricValueHandler(service metrics.MetricsService, logger *zap.Logger) http.HandlerFunc {
 	return func(writer http.ResponseWriter, request *http.Request) {
 		if request.Method != http.MethodGet {
 			http.Error(writer, fmt.Sprintf("Method '%s' is not allowed", request.Method), http.StatusBadRequest)
@@ -245,7 +246,7 @@ func NewFindMetricValueHandler(service metricsService, logger *zap.Logger) http.
 }
 
 // Find one mertic handler
-func NewFindOneMetricHandler(service metricsService, logger *zap.Logger) http.HandlerFunc {
+func NewFindOneMetricHandler(service metrics.MetricsService, logger *zap.Logger) http.HandlerFunc {
 	return func(writer http.ResponseWriter, request *http.Request) {
 		if request.Method != http.MethodPost {
 			http.Error(writer, fmt.Sprintf("Method '%s' is not allowed", request.Method), http.StatusBadRequest)
@@ -297,7 +298,7 @@ func NewFindOneMetricHandler(service metricsService, logger *zap.Logger) http.Ha
 }
 
 // Find all metrics handler
-func NewFindAllMetricsHandler(service metricsService, logger *zap.Logger) http.HandlerFunc {
+func NewFindAllMetricsHandler(service metrics.MetricsService, logger *zap.Logger) http.HandlerFunc {
 	return func(writer http.ResponseWriter, request *http.Request) {
 		if request.Method != http.MethodGet {
 			http.Error(writer, fmt.Sprintf("Method '%s' is not allowed", request.Method), http.StatusBadRequest)

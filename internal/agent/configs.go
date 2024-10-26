@@ -16,6 +16,7 @@ type Config struct {
 	HashKey        string `json:"hash_key"`
 	RateLimit      int    `json:"rate_limit"`
 	EnabledHTTPS   bool   `json:"enabled_https"`
+	EnabledGRPC    bool   `json:"enabled_grpc"`
 	CryptoKey      string `json:"crypto_key"`
 }
 
@@ -45,8 +46,9 @@ func GetConfig(loadConfig func(filePath string) (Config, error)) Config {
 	reportInterval := getIntValue(os.Getenv("REPORT_INTERVAL"), *flag.Int("r", 10, "Report interval (sec.)"), fileConfig.ReportInterval)
 	hashKey := getStringValue(os.Getenv("KEY"), *flag.String("k", "", "Hash key"), fileConfig.HashKey, "")
 	rateLimit := getIntValue(os.Getenv("RATE_LIMIT"), *flag.Int("l", 1, "Rate limit"), fileConfig.RateLimit)
-	enableHTTPS := getBooleanValue(os.Getenv("ENABLE_HTTPS"), *flag.Bool("s", false, "Load data from file or not"), fileConfig.EnabledHTTPS)
+	enableHTTPS := getBooleanValue(os.Getenv("ENABLE_HTTPS"), *flag.Bool("s", false, "Enabled HTTP or not"), fileConfig.EnabledHTTPS)
 	cryptoKey := getStringValue(os.Getenv("CRYPTO_KEY"), *flag.String("crypto-key", "", "Crypto key"), fileConfig.CryptoKey, "")
+	enabledGRPC := getBooleanValue(os.Getenv("ENABLE_GRPC"), *flag.Bool("g", false, "Enabled GRPC or not"), fileConfig.EnabledGRPC)
 
 	return Config{
 		ServerAddress:  address,
@@ -56,6 +58,7 @@ func GetConfig(loadConfig func(filePath string) (Config, error)) Config {
 		RateLimit:      rateLimit,
 		EnabledHTTPS:   enableHTTPS,
 		CryptoKey:      cryptoKey,
+		EnabledGRPC:    enabledGRPC,
 	}
 }
 

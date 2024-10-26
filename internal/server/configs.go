@@ -18,6 +18,7 @@ type Config struct {
 	EnabledHTTPS       bool   `json:"enabled_https"`
 	CryptoKey          string `json:"crypto_key"`
 	TrustedSubnet      string `json:"trusted_subnet"`
+	EnabledGRPC        bool   `json:"enabled_grpc"`
 }
 
 func (c Config) String() string {
@@ -50,6 +51,7 @@ func CreateConfig(logger *zap.Logger, loadConfig func(filePath string) (Config, 
 	enableHTTPS := getBooleanValue(os.Getenv("ENABLE_HTTPS"), *flag.Bool("s", false, "Load data from file or not"), fileConfig.EnabledHTTPS)
 	storeInterval := getIntValue(os.Getenv("STORE_INTERVAL"), *flag.Int("i", 5, "Store interval (sec.)"), fileConfig.StoreInterval)
 	trustedSubnet := getStringValue(os.Getenv("TRUSTED_SUBNET"), *flag.String("t", "", "Trusted subnet in CIDR format"), fileConfig.TrustedSubnet, "")
+	enableGRPC := getBooleanValue(os.Getenv("ENABLE_GRPC"), *flag.Bool("g", false, "Enabled GRPC or not"), fileConfig.EnabledHTTPS)
 
 	return Config{
 		ServerAddress:      address,
@@ -61,6 +63,7 @@ func CreateConfig(logger *zap.Logger, loadConfig func(filePath string) (Config, 
 		EnabledHTTPS:       enableHTTPS,
 		CryptoKey:          cryptoKey,
 		TrustedSubnet:      trustedSubnet,
+		EnabledGRPC:        enableGRPC,
 	}
 }
 
