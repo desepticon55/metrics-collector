@@ -13,6 +13,7 @@ import (
 	"github.com/gojek/heimdall/v7"
 	"github.com/gojek/heimdall/v7/httpclient"
 	"log"
+	"net"
 	"net/http"
 	"os"
 	"time"
@@ -68,9 +69,15 @@ func (s HTTPMetricsSender) SendMetrics(url string, metrics []common.MetricReques
 		}),
 	)
 
+	hostIP, err := getCurrentIP()
+	if err != nil {
+		return err
+	}
+
 	headers := make(http.Header)
 	headers.Add("Content-Type", "application/json")
 	headers.Add("Content-Encoding", "gzip")
+	headers.Add("X-Real-IP", hostIP)
 
 	requestBody, err := json.Marshal(metrics)
 	if err != nil {
@@ -108,4 +115,19 @@ func (s HTTPMetricsSender) SendMetrics(url string, metrics []common.MetricReques
 	}
 
 	return nil
+}
+
+func getCurrentIP() (string, error) {
+	addresses, err := net.InterfaceAddrs()
+	if err != nil {
+		return "", err
+	}
+	for _, addr := range addresses {
+		if ipNet, ok := addr.(*net.IPNet); ok && !ipNet.IP.IsLoopback() {
+			if ipNet.IP.To4() != nil {
+				return ipNet.IP.String(), nil
+			}
+		}
+	}
+	return "", fmt.Errorf("no valid IP address found")
 }

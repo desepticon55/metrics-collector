@@ -11,7 +11,7 @@ func TestParseConfig_ShouldReturnDefaultValues(t *testing.T) {
 	os.Clearenv()
 	flag.CommandLine = flag.NewFlagSet(os.Args[0], flag.ExitOnError)
 
-	config := ParseConfig(func(filePath string) (Config, error) {
+	config := CreateConfig(nil, func(filePath string) (Config, error) {
 		return Config{}, nil
 	})
 
@@ -34,9 +34,10 @@ func TestParseConfig_ShouldReturnEnvOverrides(t *testing.T) {
 	os.Setenv("ENABLE_HTTPS", "true")
 	os.Setenv("KEY", "testhash")
 	os.Setenv("CRYPTO_KEY", "secretkey")
+	os.Setenv("TRUSTED_SUBNET", "172.18.208.1/32")
 
 	flag.CommandLine = flag.NewFlagSet(os.Args[0], flag.ExitOnError)
-	config := ParseConfig(func(filePath string) (Config, error) {
+	config := CreateConfig(nil, func(filePath string) (Config, error) {
 		return Config{}, nil
 	})
 
@@ -48,6 +49,7 @@ func TestParseConfig_ShouldReturnEnvOverrides(t *testing.T) {
 	assert.True(t, config.EnabledHTTPS)
 	assert.Equal(t, "testhash", config.HashKey)
 	assert.Equal(t, "secretkey", config.CryptoKey)
+	assert.Equal(t, "172.18.208.1/32", config.TrustedSubnet)
 }
 
 func TestParseConfig_ShouldReturnFileOverrides(t *testing.T) {
@@ -56,7 +58,7 @@ func TestParseConfig_ShouldReturnFileOverrides(t *testing.T) {
 
 	flag.CommandLine = flag.NewFlagSet(os.Args[0], flag.ExitOnError)
 
-	config := ParseConfig(func(filePath string) (Config, error) {
+	config := CreateConfig(nil, func(filePath string) (Config, error) {
 		return Config{
 			ServerAddress:      "192.168.1.1:8000",
 			FileStoragePath:    "/data/metrics.json",
@@ -66,6 +68,7 @@ func TestParseConfig_ShouldReturnFileOverrides(t *testing.T) {
 			EnabledHTTPS:       true,
 			HashKey:            "filehash",
 			CryptoKey:          "filecrypto",
+			TrustedSubnet:      "172.18.208.1/32",
 		}, nil
 	})
 
@@ -77,4 +80,5 @@ func TestParseConfig_ShouldReturnFileOverrides(t *testing.T) {
 	assert.True(t, config.EnabledHTTPS)
 	assert.Equal(t, "filehash", config.HashKey)
 	assert.Equal(t, "filecrypto", config.CryptoKey)
+	assert.Equal(t, "172.18.208.1/32", config.TrustedSubnet)
 }

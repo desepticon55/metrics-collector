@@ -45,7 +45,7 @@ func main() {
 	}
 	defer logger.Sync()
 
-	config := extractConfig()
+	config := extractConfig(logger)
 	flag.Parse()
 	v := initValidator()
 	mapper := initMapper(v)
@@ -73,6 +73,7 @@ func main() {
 	router.Use(customMiddleware.LoggingMiddleware(logger))
 	router.Use(customMiddleware.CompressingMiddleware())
 	router.Use(customMiddleware.DecompressingMiddleware())
+	router.Use(customMiddleware.TrustedSubnetMiddleware(config.TrustedSubnet))
 
 	router.Method(http.MethodGet, "/", metricsApi.NewFindAllMetricsHandler(metricsService, logger))
 	router.Method(http.MethodGet, "/ping", metricsApi.NewPingHandler(pool, logger))
@@ -92,8 +93,8 @@ func main() {
 	}
 }
 
-func extractConfig() server.Config {
-	return server.ParseConfig(func(filePath string) (server.Config, error) {
+func extractConfig(logger *zap.Logger) server.Config {
+	return server.CreateConfig(logger, func(filePath string) (server.Config, error) {
 		var config server.Config
 		fileContent, err := os.ReadFile(filePath)
 		if err != nil {
