@@ -89,7 +89,7 @@ func main() {
 		}
 	}()
 
-	sender := agent.New(config)
+	sender := makeSender(config)
 	rateLimiter := rate.NewLimiter(rate.Every(1*time.Second), config.RateLimit)
 
 	wg.Add(1)
@@ -129,6 +129,13 @@ func main() {
 
 }
 
+func makeSender(config agent.Config) agent.MetricsSender {
+	if config.EnabledGRPC {
+		return agent.NewGRPCSender(config)
+	}
+	return agent.NewHTTPSender(config)
+}
+
 func extractConfig() agent.Config {
 	return agent.GetConfig(func(filePath string) (agent.Config, error) {
 		var config agent.Config
@@ -154,11 +161,16 @@ func runPprofServer() {
 
 func sendMetrics(sender agent.MetricsSender, metrics []common.MetricRequestDto, config agent.Config, logger *zap.Logger) {
 	var err error
-	if config.EnabledHTTPS {
-		err = sender.SendMetrics(fmt.Sprintf("https://%s/updates/", config.ServerAddress), metrics)
+	if config.EnabledGRPC {
+		err = sender.SendMetrics(config.ServerAddress, metrics)
 	} else {
-		err = sender.SendMetrics(fmt.Sprintf("http://%s/updates/", config.ServerAddress), metrics)
+		if config.EnabledHTTPS {
+			err = sender.SendMetrics(fmt.Sprintf("https://%s/updates/", config.ServerAddress), metrics)
+		} else {
+			err = sender.SendMetrics(fmt.Sprintf("http://%s/updates/", config.ServerAddress), metrics)
+		}
 	}
+
 	if err != nil {
 		logger.Error("Error during send metrics", zap.Error(err))
 	} else {

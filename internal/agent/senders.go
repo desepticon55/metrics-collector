@@ -3,6 +3,7 @@ package agent
 import (
 	"bytes"
 	"compress/gzip"
+	"context"
 	"crypto/sha256"
 	"crypto/tls"
 	"crypto/x509"
@@ -10,9 +11,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/desepticon55/metrics-collector/internal/common"
+	metrics2 "github.com/desepticon55/metrics-collector/proto/metrics"
 	"github.com/gojek/heimdall/v7"
 	"github.com/gojek/heimdall/v7/httpclient"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 	"log"
+	"net"
 	"net/http"
 	"os"
 	"time"
@@ -26,7 +31,7 @@ type HTTPMetricsSender struct {
 	config Config
 }
 
-func New(config Config) MetricsSender {
+func NewHTTPSender(config Config) MetricsSender {
 	return HTTPMetricsSender{config: config}
 }
 
@@ -68,9 +73,15 @@ func (s HTTPMetricsSender) SendMetrics(url string, metrics []common.MetricReques
 		}),
 	)
 
+	hostIP, err := getCurrentIP()
+	if err != nil {
+		return err
+	}
+
 	headers := make(http.Header)
 	headers.Add("Content-Type", "application/json")
 	headers.Add("Content-Encoding", "gzip")
+	headers.Add("X-Real-IP", hostIP)
 
 	requestBody, err := json.Marshal(metrics)
 	if err != nil {
@@ -108,4 +119,75 @@ func (s HTTPMetricsSender) SendMetrics(url string, metrics []common.MetricReques
 	}
 
 	return nil
+}
+
+type GRPCMetricsSender struct {
+	config Config
+}
+
+func NewGRPCSender(config Config) MetricsSender {
+	return GRPCMetricsSender{config: config}
+}
+
+func (s GRPCMetricsSender) SendMetrics(url string, metrics []common.MetricRequestDto) error {
+	conn, err := grpc.NewClient(url, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	if err != nil {
+		log.Fatalf("Failed to connect: %v", err)
+		return err
+	}
+	defer conn.Close()
+
+	client := metrics2.NewMetricsServiceClient(conn)
+	hostIP, err := getCurrentIP()
+	if err != nil {
+		return err
+	}
+
+	var protoMetrics []*metrics2.Metric
+	for _, m := range metrics {
+		protoMetric := &metrics2.Metric{
+			Id:   m.ID,
+			Type: string(m.MType),
+		}
+
+		if m.Delta != nil {
+			protoMetric.Delta = *m.Delta
+		}
+
+		if m.Value != nil {
+			protoMetric.Value = *m.Value
+		}
+
+		protoMetrics = append(protoMetrics, protoMetric)
+	}
+
+	hash := ""
+	if s.config.HashKey != "" {
+		requestBody, _ := json.Marshal(protoMetrics)
+		hashSum := sha256.Sum256(append(requestBody, []byte(s.config.HashKey)...))
+		hash = hex.EncodeToString(hashSum[:])
+	}
+
+	_, err = client.SendMetrics(context.Background(), &metrics2.MetricsRequest{
+		Metrics: protoMetrics,
+		Ip:      hostIP,
+		Hash:    hash,
+	})
+
+	return err
+}
+
+func getCurrentIP() (string, error) {
+	addresses, err := net.InterfaceAddrs()
+	if err != nil {
+		return "", err
+	}
+	for _, addr := range addresses {
+		if ipNet, ok := addr.(*net.IPNet); ok && !ipNet.IP.IsLoopback() {
+			if ipNet.IP.To4() != nil {
+				return ipNet.IP.String(), nil
+			}
+		}
+	}
+	return "", fmt.Errorf("no valid IP address found")
 }

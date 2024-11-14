@@ -1,0 +1,26 @@
+syntax = "proto3";
+
+package metrics;
+
+option go_package = "metrics/";
+
+service MetricsService {
+  rpc SendMetrics (MetricsRequest) returns (MetricsResponse);
+}
+
+message Metric {
+  string id = 1;
+  string type = 2;
+  int64 delta = 3;
+  double value = 4;
+}
+
+message MetricsRequest {
+  repeated Metric metrics = 1;
+  string ip = 2;
+  string hash = 3;
+}
+
+message MetricsResponse {
+  string status = 1;
+}

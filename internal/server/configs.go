@@ -3,7 +3,7 @@ package server
 import (
 	"flag"
 	"fmt"
-	"log"
+	"go.uber.org/zap"
 	"os"
 	"strconv"
 )
@@ -17,6 +17,8 @@ type Config struct {
 	HashKey            string `json:"hash_key"`
 	EnabledHTTPS       bool   `json:"enabled_https"`
 	CryptoKey          string `json:"crypto_key"`
+	TrustedSubnet      string `json:"trusted_subnet"`
+	EnabledGRPC        bool   `json:"enabled_grpc"`
 }
 
 func (c Config) String() string {
@@ -24,7 +26,7 @@ func (c Config) String() string {
 		c.ServerAddress, c.DatabaseConnString, c.StoreInterval, c.FileStoragePath, c.HashKey, c.Restore, c.EnabledHTTPS, c.CryptoKey)
 }
 
-func ParseConfig(loadConfig func(filePath string) (Config, error)) Config {
+func CreateConfig(logger *zap.Logger, loadConfig func(filePath string) (Config, error)) Config {
 	defaultConfigPath := ""
 	if envConfigPath, exists := os.LookupEnv("CONFIG"); exists {
 		defaultConfigPath = envConfigPath
@@ -36,7 +38,7 @@ func ParseConfig(loadConfig func(filePath string) (Config, error)) Config {
 		var err error
 		fileConfig, err = loadConfig(*configPath)
 		if err != nil {
-			log.Printf("Failed to load config from file: %v", err)
+			logger.Error("Failed to load config from file", zap.Error(err))
 		}
 	}
 
@@ -48,6 +50,8 @@ func ParseConfig(loadConfig func(filePath string) (Config, error)) Config {
 	restore := getBooleanValue(os.Getenv("RESTORE"), *flag.Bool("r", false, "Load data from file or not"), fileConfig.Restore)
 	enableHTTPS := getBooleanValue(os.Getenv("ENABLE_HTTPS"), *flag.Bool("s", false, "Load data from file or not"), fileConfig.EnabledHTTPS)
 	storeInterval := getIntValue(os.Getenv("STORE_INTERVAL"), *flag.Int("i", 5, "Store interval (sec.)"), fileConfig.StoreInterval)
+	trustedSubnet := getStringValue(os.Getenv("TRUSTED_SUBNET"), *flag.String("t", "", "Trusted subnet in CIDR format"), fileConfig.TrustedSubnet, "")
+	enableGRPC := getBooleanValue(os.Getenv("ENABLE_GRPC"), *flag.Bool("g", false, "Enabled GRPC or not"), fileConfig.EnabledHTTPS)
 
 	return Config{
 		ServerAddress:      address,
@@ -58,6 +62,8 @@ func ParseConfig(loadConfig func(filePath string) (Config, error)) Config {
 		HashKey:            hashKey,
 		EnabledHTTPS:       enableHTTPS,
 		CryptoKey:          cryptoKey,
+		TrustedSubnet:      trustedSubnet,
+		EnabledGRPC:        enableGRPC,
 	}
 }
 
